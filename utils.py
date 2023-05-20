@@ -1,5 +1,10 @@
+import os
+
 import mne.io
+import numpy as np
+from matplotlib import pyplot as plt
 from mne.io import read_raw_bdf
+from mne.viz import plot_raw
 
 
 def read_bdf(path: str, subject: str) -> mne.io.Raw:
@@ -43,3 +48,50 @@ def save(plt, file_name: str):
     fig = plt.gcf()
     fig.canvas.draw()
     fig.savefig(file_name)
+
+
+def get_subjects(path: str) -> list[str]:
+    subjects = []
+    if os.path.exists(path):
+        # s01-s22 are the only who have videos
+        for i in range(1, 23):
+            subject = f's{i:02d}.bdf'
+            subject_path = os.path.join(path, subject)
+            if os.path.exists(subject_path):
+                subjects.append(subject)
+    return subjects
+
+
+def create_filename(folder, subject, trial_count, extension):
+    subject_no_extension = subject.split(".")[0]
+    two_digits_trial_count = str(trial_count).zfill(2)
+    filename = f"{folder}{subject_no_extension}_trial{two_digits_trial_count}{extension}"
+    return filename
+
+
+def save_plot(folder: str, subject, trial_count, data, info):
+    raw_filtered = mne.io.RawArray(data, info)
+    plot_raw(raw_filtered, duration=60, scalings=20e-5)
+    # plt.show()
+    filename = create_filename(folder, subject, trial_count, '.png')
+    os.makedirs(folder, exist_ok=True)
+    save(plt, filename)
+    plt.close()
+
+
+def save_events(folder, subject, trial_count, events, evt_in_sec):
+    filename = create_filename(folder, subject, trial_count, '.txt')
+    os.makedirs(folder, exist_ok=True)
+    with open(filename, 'w') as f:
+        f.write('Events detected: {}\n'.format(len(evt_in_sec)))
+        f.write('Events: {}\n'.format(events))
+        f.write('Events in seconds: {}\n'.format(evt_in_sec))
+
+
+def calculate_threshold(filtered_data):
+    return (np.max(filtered_data) - np.min(filtered_data)) / 2
+
+
+def convert_in_seconds(events, index, raw):
+    events_indices = events[:, 0]
+    return (events_indices - index) / get_sample_rate(raw)

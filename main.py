@@ -1,34 +1,37 @@
-import numpy as np
-from matplotlib import pyplot as plt
 from mne.filter import filter_data
 from mne.preprocessing import find_eog_events
-from mne.viz import plot_raw
 
 from utils import *
 
 if __name__ == '__main__':
-    raw = read_bdf(path='data_original/', subject='s01.bdf')
-    raw.resample(sfreq=128, verbose=False)
-
-    indices = get_indices_where_video_start(raw)
-
-    n_trial = 21
-    index_trial = indices[n_trial - 1]
-
+    path = 'data_original/'
     eeg = ['Fp1', 'Fp2']
-    raw.pick_channels(eeg)  # We will focus on EEG channels only
+    l_freq = 1
+    h_freq = 10
 
-    raw = crop(raw, index_trial)
+    subjects = get_subjects(path)
 
-    l_freq = 1.0
-    h_freq = 10.0
-    filtered_data = filter_data(raw.get_data(), sfreq=get_sample_rate(raw), l_freq=l_freq, h_freq=h_freq)
-    raw_filtered = mne.io.RawArray(filtered_data, raw.info)
-    plot_raw(raw_filtered, duration=60, scalings=20e-5)
-    # save(plt, 'plot.png')
-    plt.show()
+    for subject in subjects:
+        raw = read_bdf(path='data_original/', subject=subject)
+        raw.resample(sfreq=128)
 
-    thresh = (np.max(filtered_data) - np.min(filtered_data)) / 2
-    events = find_eog_events(raw, ch_name=eeg, thresh=thresh)  # On the raw signal!
-    events_in_seconds = (events[:, 0] - index_trial) / get_sample_rate(raw)
-    print('Events', events, 'at second', events_in_seconds)
+        indices = get_indices_where_video_start(raw)
+        trial_count = 1  # 1-40
+        for index in indices:
+            raw_copy = raw.copy().pick_channels(eeg)
+            cropped_raw = crop(raw_copy, index)
+
+            data = raw_copy.get_data()
+            sample_rate = get_sample_rate(raw_copy)
+            filtered_data = filter_data(data=data, sfreq=sample_rate, l_freq=l_freq, h_freq=h_freq)
+
+            info = raw_copy.info
+            save_plot(folder='plots/', subject=subject, trial_count=trial_count, data=filtered_data, info=info)
+
+            thresh = calculate_threshold(filtered_data)
+            events = find_eog_events(raw_copy, ch_name=eeg, thresh=thresh)
+            evt_in_sec = convert_in_seconds(events, index, raw_copy)
+            save_events(folder='events/', subject=subject, trial_count=trial_count, events=events,
+                        evt_in_sec=evt_in_sec)
+
+            trial_count += 1
