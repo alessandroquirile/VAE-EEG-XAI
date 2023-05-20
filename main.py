@@ -22,14 +22,13 @@ if __name__ == '__main__':
 
             data = raw_copy.get_data()
             sample_rate = get_sample_rate(raw_copy)
-            filtered_data = filter_data(data=data, sfreq=sample_rate, l_freq=l_freq, h_freq=h_freq)
+            filtered_data = filter_data(data, sample_rate, l_freq, h_freq)
 
             info = raw_copy.info
 
             # If this gives problems, disable PyCharm's python SciView
-            save_plot(folder_name='plots', subject=subject, trial=trial, data=filtered_data, info=info)
+            save_plot('plots', subject, trial, filtered_data, info)
 
             thresh = calculate_threshold(filtered_data)
             events = find_eog_events(raw_copy, ch_name=eeg, thresh=thresh)
-            save_events(folder_name='events', subject=subject, trial=trial, events=events,
-                        sample_index=sample_index, sample_rate=sample_rate)
+            save_events('events', subject, trial, events, sample_index, sample_rate)
