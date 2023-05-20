@@ -16,22 +16,20 @@ if __name__ == '__main__':
         raw.resample(sfreq=128)
 
         indices = get_indices_where_video_start(raw)
-        trial_count = 1  # 1-40
-        for index in indices:
+        for trial, sample_index in enumerate(indices, start=1):
             raw_copy = raw.copy().pick_channels(eeg)
-            cropped_raw = crop(raw_copy, index)
+            cropped_raw = crop(raw_copy, sample_index)
 
             data = raw_copy.get_data()
             sample_rate = get_sample_rate(raw_copy)
             filtered_data = filter_data(data=data, sfreq=sample_rate, l_freq=l_freq, h_freq=h_freq)
 
             info = raw_copy.info
-            save_plot(folder='plots/', subject=subject, trial_count=trial_count, data=filtered_data, info=info)
+
+            # If this gives problems, disable PyCharm's python SciView
+            save_plot(folder_name='plots', subject=subject, trial=trial, data=filtered_data, info=info)
 
             thresh = calculate_threshold(filtered_data)
             events = find_eog_events(raw_copy, ch_name=eeg, thresh=thresh)
-            evt_in_sec = convert_in_seconds(events, index, raw_copy)
-            save_events(folder='events/', subject=subject, trial_count=trial_count, events=events,
-                        evt_in_sec=evt_in_sec)
-
-            trial_count += 1
+            save_events(folder_name='events', subject=subject, trial=trial, events=events,
+                        sample_index=sample_index, sample_rate=sample_rate)
