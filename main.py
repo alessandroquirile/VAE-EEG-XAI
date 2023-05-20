@@ -1,4 +1,3 @@
-import mne
 import numpy as np
 from matplotlib import pyplot as plt
 from mne.filter import filter_data
@@ -13,7 +12,8 @@ if __name__ == '__main__':
 
     indices = get_indices_where_video_start(raw)
 
-    index_trial = indices[20]  # index: i, trial: i+1
+    n_trial = 21
+    index_trial = indices[n_trial - 1]
 
     eeg = ['Fp1', 'Fp2']
     raw.pick_channels(eeg)  # We will focus on EEG channels only
@@ -31,4 +31,4 @@ if __name__ == '__main__':
     thresh = (np.max(filtered_data) - np.min(filtered_data)) / 2
     events = find_eog_events(raw, ch_name=eeg, thresh=thresh)  # On the raw signal!
     events_in_seconds = (events[:, 0] - index_trial) / get_sample_rate(raw)
-    print('Event', events, 'at second', events_in_seconds)
+    print('Events', events, 'at second', events_in_seconds)

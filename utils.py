@@ -1,17 +1,19 @@
+import mne.io
 from mne.io import read_raw_bdf
 
 
-def read_bdf(path, subject):
+def read_bdf(path: str, subject: str) -> mne.io.Raw:
     eog = ['EXG1', 'EXG2', 'EXG3', 'EXG4']
     misc = ['EXG5', 'EXG6', 'EXG7', 'EXG8', 'GSR1', 'GSR2', 'Erg1', 'Erg2', 'Resp', 'Plet', 'Temp']
     raw = read_raw_bdf(path + subject, eog=eog, misc=misc, stim_channel='status', preload=True, verbose=False)
     return raw
 
 
-def get_indices_where_video_start(raw):
+def get_indices_where_video_start(raw: mne.io.Raw) -> list[int]:
     # The status channel contains markers sent from the stimuli presentation PC,
     # indicating when trials start and end.
-    status_channel = raw.get_data()[47]
+    STATUS_CHANNEL_ID = 47
+    status_channel = raw.get_data()[STATUS_CHANNEL_ID]
     min1 = get_sample_rate(raw) * 60
     idx_starts = []
     i = 0
@@ -24,20 +26,20 @@ def get_indices_where_video_start(raw):
     return idx_starts
 
 
-def crop(raw, id_trial21):
+def crop(raw: mne.io.Raw, index_trial: int) -> mne.io.Raw:
     sample_rate = get_sample_rate(raw)
     min1 = sample_rate * 60
-    tmin = id_trial21 / sample_rate
-    tmax = (id_trial21 + min1) / sample_rate
-    raw_trial21 = raw.crop(tmin=tmin, tmax=tmax)
-    return raw_trial21
+    tmin = index_trial / sample_rate
+    tmax = (index_trial + min1) / sample_rate
+    cropped_raw = raw.crop(tmin=tmin, tmax=tmax)
+    return cropped_raw
 
 
-def get_sample_rate(raw):
+def get_sample_rate(raw: mne.io.Raw) -> int:
     return int(raw.info['sfreq'])
 
 
-def save(plt, file_name):
+def save(plt, file_name: str):
     fig = plt.gcf()
     fig.canvas.draw()
     fig.savefig(file_name)
