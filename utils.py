@@ -63,7 +63,8 @@ def get_subjects(path: str) -> list[str]:
 
 
 def calculate_threshold(lowest_peak, highest_peak):
-    return (highest_peak - lowest_peak) / 2
+    MAGIC_NUMBER = 2
+    return (highest_peak - lowest_peak) / MAGIC_NUMBER
 
 
 def save_plot(folder_name: str, subject: str, trial: int, data, info):
