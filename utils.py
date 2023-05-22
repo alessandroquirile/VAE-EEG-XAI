@@ -3,6 +3,7 @@ import os
 import mne.io
 import numpy as np
 from matplotlib import pyplot as plt
+from mne.filter import filter_data
 from mne.io import read_raw_bdf
 from mne.viz import plot_raw
 
@@ -61,8 +62,8 @@ def get_subjects(path: str) -> list[str]:
     return subjects
 
 
-def calculate_threshold(filtered_data):
-    return (np.max(filtered_data) - np.min(filtered_data)) / 2
+def calculate_threshold(lowest_peak, highest_peak):
+    return (highest_peak - lowest_peak) / 2
 
 
 def save_plot(folder_name: str, subject: str, trial: int, data, info):
@@ -83,6 +84,24 @@ def save_events(folder_name: str, subject: str, trial: int, events, sample_index
         f.write('Events detected: {}\n'.format(len(events_in_seconds)))
         f.write('Events: {}\n'.format(events))
         f.write('Events in seconds: {}\n'.format(events_in_seconds))
+
+
+def find_extrema(raw, indices, eeg, l_freq, h_freq):
+    lowest_peak = float('inf')
+    highest_peak = float('-inf')
+    for trial, sample_index in enumerate(indices, start=1):
+        raw_copy = raw.copy().pick_channels(eeg)
+        cropped_raw = crop(raw_copy, sample_index)
+        data = raw_copy.get_data()
+        sample_rate = get_sample_rate(raw_copy)
+        filtered_data = filter_data(data, sample_rate, l_freq, h_freq)
+
+        if np.min(filtered_data) < lowest_peak:
+            lowest_peak = np.min(filtered_data)
+        if np.max(filtered_data) > highest_peak:
+            highest_peak = np.max(filtered_data)
+
+    return lowest_peak, highest_peak
 
 
 def _create_filename(folder_name: str, subject: str, trial: int, extension: str):
