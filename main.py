@@ -4,29 +4,20 @@ from utils import *
 
 if __name__ == '__main__':
     path = 'data_original/'
-    eeg = ['Fp1', 'Fp2']
+    sample_rate = 128
     l_freq = 1
     h_freq = 10
 
     subjects = get_subjects(path)
-
     for subject in subjects:
-        raw = read_bdf(path='data_original/', subject=subject)
-        raw.resample(sfreq=128)
+        raw = read_bdf(path, subject)
+        raw.resample(sample_rate)
+        lowest_peak, highest_peak = get_extrema(raw, l_freq, h_freq)
         indices = get_indices_where_video_start(raw)
-        lowest_peak, highest_peak = find_extrema(raw, indices, eeg, l_freq, h_freq)
-
-        for trial, sample_index in enumerate(indices, start=1):
-            raw_copy = raw.copy().pick_channels(eeg)
-            cropped_raw = crop(raw_copy, sample_index)
-
-            data = raw_copy.get_data()
-            sample_rate = get_sample_rate(raw_copy)
-            filtered_data = filter_data(data, sample_rate, l_freq, h_freq)
-
-            # If this gives problems, disable PyCharm's python SciView
-            save_plot('plots', subject, trial, filtered_data, raw_copy.info)
+        for trial, index in enumerate(indices, start=1):
+            cropped_raw = crop(raw, index)
+            save_plot('plots', l_freq, h_freq, cropped_raw, subject, trial)
 
             thresh = calculate_threshold(lowest_peak, highest_peak)
-            events = find_eog_events(raw_copy, ch_name=eeg, thresh=thresh)
-            save_events('events', subject, trial, events, sample_index, sample_rate)
+            events = find_eog_events(cropped_raw, ch_name=EEG, thresh=thresh)
+            save_events('events', subject, trial, events, index, sample_rate)
