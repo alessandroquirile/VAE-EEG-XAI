@@ -1,5 +1,6 @@
 from mne.preprocessing import find_eog_events
 
+from savers import save_plot, save_events
 from utils import *
 
 if __name__ == '__main__':
@@ -24,6 +25,6 @@ if __name__ == '__main__':
             cropped_raw = crop(raw, index)
             save_plot('plots', l_freq, h_freq, cropped_raw, subject, trial)
             thresh = calculate_threshold(lowest_peak, highest_peak)
-            # We shall focus on EEG since Fp1, Fp2 are the closest to the eyes
+            # We shall focus on EEG since Fp1, Fp2 are the closest electrodes to the eyes
             events = find_eog_events(cropped_raw, ch_name=EEG, thresh=thresh)
             save_events('events', subject, trial, events, index, sample_rate)
