@@ -19,6 +19,7 @@ def read_bdf(path: str, subject: str) -> mne.io.Raw:
 def get_indices_where_video_start(raw: mne.io.Raw) -> list[int]:
     sample_rate = get_sample_rate(raw)
     n_samples_in_1_minute = _get_number_of_samples_in_1_minute(sample_rate)
+    # https://www.eecs.qmul.ac.uk/mmv/datasets/deap/readme.html
     status_channel = raw.get_data()[STATUS_CHANNEL_ID]
     idx_starts = []
     i = 0
@@ -38,7 +39,8 @@ def get_sample_rate(raw: mne.io.Raw) -> int:
 def get_subjects(path: str) -> list[str]:
     subjects = []
     if os.path.exists(path):
-        # s01-s22 are the only who have videos
+        # S01-S22 are the only ones who have videos of their trials
+        # range(1, 23) means [1;23) mathematically
         for i in range(1, 23):
             subject = f's{i:02d}.bdf'
             subject_path = os.path.join(path, subject)
@@ -48,7 +50,7 @@ def get_subjects(path: str) -> list[str]:
 
 
 def calculate_threshold(lowest_peak, highest_peak):
-    magic_number = 2
+    magic_number = 2  # seems to work properly
     return (highest_peak - lowest_peak) / magic_number
 
 
