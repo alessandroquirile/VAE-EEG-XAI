@@ -12,7 +12,7 @@ if __name__ == '__main__':
     subjects = get_subjects(path)
     for subject in subjects:
         raw = read_bdf(path, subject)
-        raw.resample(sample_rate)  # No need to use the original 512 sample rate
+        # raw.resample(sample_rate)
 
         # Computing the extrema for each subject (instead of for each trial) handles the scenario in which
         # a subject does not blink at all watching a trial:
