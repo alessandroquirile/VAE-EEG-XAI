@@ -26,7 +26,7 @@ def save_events(folder_name: str, subject: str, trial: int, events, sample_index
 
 def _save_plot(folder_name: str, subject: str, trial: int, data, info):
     raw_filtered = mne.io.RawArray(data, info)
-    plot_raw(raw_filtered, duration=60, scalings=20e-5)
+    plot_raw(raw_filtered, duration=60, scalings=20e-5, show=False)
     # plt.show()
     filename = _create_filename(folder_name, subject, trial, 'png')
     os.makedirs(folder_name, exist_ok=True)
