@@ -5,14 +5,13 @@ from utils import *
 
 if __name__ == '__main__':
     path = 'data_original/'
-    sample_rate = 128
     l_freq = 1
     h_freq = 10
 
     subjects = get_subjects(path)
     for subject in subjects:
         raw = read_bdf(path, subject)
-        # raw.resample(sample_rate)
+        sample_rate = get_sample_rate(raw)
 
         # Computing the extrema for each subject (instead of for each trial) handles the scenario in which
         # a subject does not blink at all watching a trial:
