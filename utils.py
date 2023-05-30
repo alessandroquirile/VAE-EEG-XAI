@@ -67,7 +67,7 @@ def get_extrema(raw, l_freq, h_freq):
 
 
 def _blinks_rarely(subject):
-    subjects_who_blink_rarely = ['s01', 's03', 's16', 's18', 's21']
+    subjects_who_blink_rarely = ['s01.bdf', 's03.bdf', 's16.bdf', 's18.bdf', 's21.bdf']
     return subject in subjects_who_blink_rarely
 
 
