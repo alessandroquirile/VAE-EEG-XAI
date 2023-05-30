@@ -47,9 +47,12 @@ def get_subjects(path: str) -> list[str]:
     return subjects
 
 
-def calculate_threshold(lowest_peak, highest_peak):
-    magic_number = 2
-    return (highest_peak - lowest_peak) / magic_number
+def calculate_thresh(subject, subject_highest_peak, subject_lowest_peak, trial_highest_peak, trial_lowest_peak,
+                     magic_number, filtered_data):
+    if _blinks_rarely(subject):
+        return (subject_highest_peak - subject_lowest_peak) / magic_number
+    else:
+        return (trial_highest_peak - trial_lowest_peak) - (magic_number * np.std(filtered_data))
 
 
 def crop(raw, sample_index):
@@ -61,6 +64,11 @@ def crop(raw, sample_index):
 def get_extrema(raw, l_freq, h_freq):
     indices = get_indices_where_video_start(raw)
     return _get_extrema(raw, indices, l_freq, h_freq)
+
+
+def _blinks_rarely(subject):
+    subjects_who_blink_rarely = ['s01', 's03', 's16', 's18', 's21']
+    return subject in subjects_who_blink_rarely
 
 
 def _crop(raw: mne.io.Raw, sample_index: int) -> mne.io.Raw:

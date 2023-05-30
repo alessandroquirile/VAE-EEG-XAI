@@ -7,6 +7,7 @@ from mne.viz import plot_raw
 
 from utils import get_sample_rate
 
+
 def save_plot(folder_name: str, l_freq, h_freq, raw, subject, trial):
     data = raw.get_data()
     sample_rate = get_sample_rate(raw)
@@ -14,7 +15,9 @@ def save_plot(folder_name: str, l_freq, h_freq, raw, subject, trial):
     _save_plot(folder_name, subject, trial, filtered_data, raw.info)
 
 
-def save_events(folder_name: str, subject: str, trial: int, events, sample_index, sample_rate):
+def save_events(folder_name: str, subject: str, trial: int, events, sample_index, sample_rate,
+                lowest_peak, highest_peak, magic_number,
+                trial_lowest_peak, trial_highest_peak, thresh):
     filename = _create_filename(folder_name, subject, trial, 'txt')
     os.makedirs(folder_name, exist_ok=True)
     events_in_seconds = _convert_in_seconds(events, sample_index, sample_rate)
@@ -22,11 +25,19 @@ def save_events(folder_name: str, subject: str, trial: int, events, sample_index
         f.write('Events detected: {}\n'.format(len(events_in_seconds)))
         f.write('Events: {}\n'.format(events))
         f.write('Events in seconds: {}\n'.format(events_in_seconds))
+        f.write('k: {}\n'.format(magic_number))
+        f.write('threshold: {:.8f}\n'.format(thresh))
+        f.write('Subject lowest peak: {:.8f}\n'.format(lowest_peak))
+        f.write('Subject highest peak: {:.8f}\n'.format(highest_peak))
+        f.write('Subject peaks difference: {:.8f}\n'.format(highest_peak - lowest_peak))
+        f.write('Trial lowest peak: {:.8f}\n'.format(trial_lowest_peak))
+        f.write('Trial highest peak: {:.8f}\n'.format(trial_highest_peak))
+        f.write('Trial peaks difference: {:.8f}\n'.format(trial_highest_peak - trial_lowest_peak))
 
 
 def _save_plot(folder_name: str, subject: str, trial: int, data, info):
     raw_filtered = mne.io.RawArray(data, info)
-    plot_raw(raw_filtered, duration=60, scalings=20e-5)
+    plot_raw(raw_filtered, duration=60, scalings=20e-5, show=False)
     # plt.show()
     filename = _create_filename(folder_name, subject, trial, 'png')
     os.makedirs(folder_name, exist_ok=True)
