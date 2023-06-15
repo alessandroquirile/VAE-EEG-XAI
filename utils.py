@@ -47,12 +47,11 @@ def get_subjects(path: str) -> list[str]:
     return subjects
 
 
-def calculate_thresh(subject, subject_highest_peak, subject_lowest_peak, trial_highest_peak, trial_lowest_peak,
-                     magic_number, filtered_data):
-    if _blinks_rarely(subject):
-        return (subject_highest_peak - subject_lowest_peak) / magic_number
-    else:
-        return (trial_highest_peak - trial_lowest_peak) - (magic_number * np.std(filtered_data))
+def calculate_thresh(filtered_data, magic_number):
+    # Detection of EEG-Based Eye-Blinks Using A Thresholding Algorithm, Dang-Khoa Tran, Thanh-Hai Nguyen, Thanh-Nghia
+    # Nguyen
+    data_max = np.max(np.sqrt(np.abs(filtered_data)))
+    return (data_max - np.std(filtered_data)) / magic_number
 
 
 def crop(raw, sample_index):

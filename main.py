@@ -3,15 +3,16 @@ from mne.preprocessing import find_eog_events
 from savers import save_plot, save_events
 from utils import *
 
-if __name__ == '__main__':
+
+def plots_and_events():
     path = 'data_original/'
     l_freq = 1
     h_freq = 10
 
     subjects = get_subjects(path)
+    subjects = ['s01.bdf']  # Todo: for each subjects
     for subject in subjects:
         raw = read_bdf(path, subject)
-        sample_rate = get_sample_rate(raw)
 
         # Computing the extrema for each subject (instead of for each trial) handles the scenario in which
         # a subject does not blink at all watching a trial:
@@ -30,12 +31,9 @@ if __name__ == '__main__':
             trial_lowest_peak = np.min(filtered_data)
             trial_highest_peak = np.max(filtered_data)
 
-            magic_number = 8  # Depends on the subject
-            thresh = calculate_thresh(subject,
-                                      subject_highest_peak, subject_lowest_peak,
-                                      trial_highest_peak, trial_lowest_peak,
-                                      magic_number,
-                                      filtered_data)
+            # s01: 105, s02: 160, s03: 100, s04: 150, s05: 150, s06: 150, s07: 110 ...
+            magic_number = 105  # Todo: Depends on the subject
+            thresh = calculate_thresh(filtered_data, magic_number)
 
             # We shall focus on EEG since Fp1, Fp2 are the closest electrodes to the eyes
             events = find_eog_events(cropped_raw, ch_name=EEG, thresh=thresh)
@@ -44,3 +42,7 @@ if __name__ == '__main__':
                         subject_lowest_peak, subject_highest_peak, magic_number,
                         trial_lowest_peak, trial_highest_peak,
                         thresh)
+
+
+if __name__ == '__main__':
+    plots_and_events()
