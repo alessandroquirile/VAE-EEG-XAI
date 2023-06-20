@@ -6,7 +6,7 @@ from mne.filter import filter_data
 from mne.io import read_raw_bdf
 
 from deap_constants import *
-from eeg_constants import EEG, EOG, MISC, STIM_CHANNEL
+from eeg_constants import FP1_FP2, EOG, MISC, STIM_CHANNEL
 
 
 def read_bdf(path: str, subject: str) -> mne.io.Raw:
@@ -54,8 +54,8 @@ def calculate_thresh(filtered_data, magic_number):
     return (data_max - np.std(filtered_data)) / magic_number
 
 
-def crop(raw, sample_index):
-    raw_copy = raw.copy().pick_channels(EEG)
+def crop(raw, sample_index, channels):
+    raw_copy = raw.copy().pick_channels(channels)
     cropped_raw = _crop(raw_copy, sample_index)
     return cropped_raw
 
@@ -82,8 +82,10 @@ def _crop(raw: mne.io.Raw, sample_index: int) -> mne.io.Raw:
 def _get_extrema(raw, indices, l_freq, h_freq):
     lowest_peak = float('inf')
     highest_peak = float('-inf')
+    """lowest_peak_trial = 0
+    highest_peak_trial = 0"""
     for trial, sample_index in enumerate(indices, start=1):
-        raw_copy = raw.copy().pick_channels(EEG)
+        raw_copy = raw.copy().pick_channels(FP1_FP2)
         cropped_raw = _crop(raw_copy, sample_index)
         data = raw_copy.get_data()
         sample_rate = get_sample_rate(raw_copy)
@@ -91,9 +93,13 @@ def _get_extrema(raw, indices, l_freq, h_freq):
 
         if np.min(filtered_data) < lowest_peak:
             lowest_peak = np.min(filtered_data)
+            # lowest_peak_trial = trial
         if np.max(filtered_data) > highest_peak:
             highest_peak = np.max(filtered_data)
+            # highest_peak_trial = trial
 
+    """print("min found at", lowest_peak_trial)
+    print("max found at", highest_peak_trial)"""
     return lowest_peak, highest_peak
 
 
