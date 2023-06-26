@@ -5,23 +5,22 @@ from matplotlib import pyplot as plt
 from tensorflow import keras
 
 
-def sample(z_mean, z_log_var, distribution=tf.random.normal):
+def sample(z_mean, z_log_var):
     """
-    Generates random samples from a given distribution using the reparameterization trick.
+    Generates random samples from a Gaussian distribution using the reparameterization trick.
 
     :param z_mean: (tf.Tensor) A tensor representing the mean of the distribution. Shape: [batch_size, dim]
     :param z_log_var: (tf.Tensor) A tensor representing the logarithm of the variance of the distribution. Shape: [batch_size, dim]
-    :param distribution: Probability distribution. Default is tf.random.normal
     :return: (tf.Tensor) A tensor containing the generated samples. Shape: [batch_size, dim]
     """
     batch = tf.shape(z_mean)[0]
     dim = tf.shape(z_mean)[1]
-    epsilon = distribution(shape=(batch, dim))
+    epsilon = tf.random.normal(shape=(batch, dim))
     stddev = tf.exp(0.5 * z_log_var)
     return z_mean + stddev * epsilon
 
 
-def plot_latent_space(vae, n=30, figsize=15):
+def plot_latent_space(vae, points_to_sample=30, figsize=15):
     """
     Plots the latent space of a Variational Autoencoder (VAE).
     This function generates a 2D manifold plot of digits in the latent space
@@ -29,32 +28,31 @@ def plot_latent_space(vae, n=30, figsize=15):
     decoder model based on a specific location in the latent space.
 
     :param vae: The trained VAE model.
-    :param n: The number of points to sample along each axis of the plot. Default is 30.
+    :param points_to_sample: The number of points to sample along each axis of the plot. Default is 30.
     :param figsize: The size of the figure (width and height) in inches. Default is 15.
     :return: None (displays the plot).
     """
-    # display an n*n 2D manifold
-    digit_size = 32
+    image_size = 32
     scale = 1.0
-    figure = np.zeros((digit_size * n, digit_size * n, 3))  # Update the shape to include 3 channels
+    figure = np.zeros((image_size * points_to_sample, image_size * points_to_sample, 3))
     # linearly spaced coordinates corresponding to the 2D plot in the latent space
-    grid_x = np.linspace(-scale, scale, n)
-    grid_y = np.linspace(-scale, scale, n)[::-1]
+    grid_x = np.linspace(-scale, scale, points_to_sample)
+    grid_y = np.linspace(-scale, scale, points_to_sample)[::-1]
 
     for i, yi in enumerate(grid_y):
         for j, xi in enumerate(grid_x):
             z_sample = np.array([[xi, yi]])
             x_decoded = vae.decoder.predict(z_sample)
-            digit = x_decoded[0].reshape(digit_size, digit_size, 3)
+            digit = x_decoded[0].reshape(image_size, image_size, 3)
             figure[
-            i * digit_size: (i + 1) * digit_size,
-            j * digit_size: (j + 1) * digit_size,
+            i * image_size: (i + 1) * image_size,
+            j * image_size: (j + 1) * image_size,
             ] = digit
 
     plt.figure(figsize=(figsize, figsize))
-    start_range = digit_size // 2
-    end_range = n * digit_size + start_range
-    pixel_range = np.arange(start_range, end_range, digit_size)
+    start_range = image_size // 2
+    end_range = points_to_sample * image_size + start_range
+    pixel_range = np.arange(start_range, end_range, image_size)
     sample_range_x = np.round(grid_x, 1)
     sample_range_y = np.round(grid_y, 1)
     plt.xticks(pixel_range, sample_range_x)
@@ -191,20 +189,20 @@ class Encoder(keras.Model):
     - call(inputs, training=None, mask=None): Executes a forward pass on the encoder.
     """
 
-    def __init__(self, latent_dim):
+    def __init__(self, latent_dimension):
         """
         Initializes an Encoder model instance.
 
-        :param latent_dim: The dimensionality of the latent space.
+        :param latent_dimension: The dimensionality of the latent space.
         """
         super(Encoder, self).__init__()
-        self.latent_dim = latent_dim
+        self.latent_dim = latent_dimension
         self.conv1 = layers.Conv2D(filters=32, kernel_size=3, activation="relu", strides=2, padding="same")
         self.conv2 = layers.Conv2D(filters=64, kernel_size=3, activation="relu", strides=2, padding="same")
         self.flatten = layers.Flatten()
         self.dense1 = layers.Dense(units=16, activation="relu")
-        self.z_mean = layers.Dense(latent_dim, name="z_mean")
-        self.z_log_var = layers.Dense(latent_dim, name="z_log_var")
+        self.z_mean = layers.Dense(latent_dimension, name="z_mean")
+        self.z_log_var = layers.Dense(latent_dimension, name="z_log_var")
         self.sampling = sample
 
     def call(self, inputs, training=None, mask=None):
@@ -247,14 +245,14 @@ class Decoder(keras.Model):
     - call(inputs, training=None, mask=None): Executes a forward pass on the decoder.
     """
 
-    def __init__(self, latent_dim):
+    def __init__(self, latent_dimension):
         """
         Initializes a Decoder model instance.
 
-        :param latent_dim: The dimensionality of the latent space.
+        :param latent_dimension: The dimensionality of the latent space.
         """
         super(Decoder, self).__init__()
-        self.latent_dim = latent_dim
+        self.latent_dim = latent_dimension
         self.dense = layers.Dense(units=8 * 8 * 64, activation="relu")
         self.reshape = layers.Reshape((8, 8, 64))
         self.deconv1 = layers.Conv2DTranspose(filters=64, kernel_size=3, activation="relu", strides=2, padding="same")
@@ -278,71 +276,23 @@ class Decoder(keras.Model):
         return decoder_outputs
 
 
-latent_dim = 2
+latent_dimension = 2
 
-encoder_inputs = keras.Input(shape=(32, 32, 3))
-encoder = Encoder(latent_dim)
+encoder = Encoder(latent_dimension)
+encoder_inputs = keras.Input(shape=(32, 32, 3))  # shape is [None, 32, 32, 3] = [batch_size, height, width, depth]
 z_mean, z_log_var, z = encoder(encoder_inputs)
-# encoder.summary()
 
-# Decoder
-latent_inputs = keras.Input(shape=(latent_dim,))
-decoder = Decoder(latent_dim)
+decoder = Decoder(latent_dimension)
+latent_inputs = keras.Input(shape=(latent_dimension,))
 decoder_outputs = decoder(latent_inputs)
-# decoder.summary()
 
-(x_train, y_train), (x_test, y_test) = keras.datasets.cifar10.load_data()
-cifar10_images = np.concatenate([x_train, x_test], axis=0)
-cifar10_images = cifar10_images.astype("float32") / 255
+(x_train, y_train), (_, _) = keras.datasets.cifar10.load_data()
+x_train = x_train.astype("float32") / 255
+
 vae = VAE(encoder, decoder)
 vae.compile(optimizer=keras.optimizers.legacy.Adam())
-vae.fit(cifar10_images, epochs=2, batch_size=128)
+vae.fit(x_train, epochs=2, batch_size=128)
 
 plot_latent_space(vae)
 
-# Expands the dimensions of x_train by adding a new axis at the end
-x_train = np.expand_dims(x_train, -1)
-x_train = x_train.astype("float32") / 255
-x_train = np.squeeze(x_train, axis=-1)
 plot_label_clusters(vae, x_train, y_train)
-
-# FUNZIONANTE MA SENZA OOP
-"""latent_dim = 2
-
-# Encoder
-encoder_inputs = keras.Input(shape=(32, 32, 3))
-x = layers.Conv2D(filters=32, kernel_size=3, activation="relu", strides=2, padding="same")(encoder_inputs)
-x = layers.Conv2D(filters=64, kernel_size=3, activation="relu", strides=2, padding="same")(x)
-x = layers.Flatten()(x)
-x = layers.Dense(units=16, activation="relu")(x)
-z_mean = layers.Dense(latent_dim, name="z_mean")(x)
-z_log_var = layers.Dense(latent_dim, name="z_log_var")(x)
-z = sample(z_mean, z_log_var)  # latent variable
-encoder = keras.Model(encoder_inputs, [z_mean, z_log_var, z], name="encoder")
-# encoder.summary()
-
-# Decoder
-latent_inputs = keras.Input(shape=(latent_dim,))
-x = layers.Dense(units=8 * 8 * 64, activation="relu")(latent_inputs)
-x = layers.Reshape((8, 8, 64))(x)
-# Deconvolution for reconstructing the input data
-x = layers.Conv2DTranspose(filters=64, kernel_size=3, activation="relu", strides=2, padding="same")(x)
-x = layers.Conv2DTranspose(filters=32, kernel_size=3, activation="relu", strides=2, padding="same")(x)
-decoder_outputs = layers.Conv2DTranspose(filters=3, kernel_size=3, activation="sigmoid", padding="same")(x)
-decoder = keras.Model(latent_inputs, decoder_outputs, name="decoder")
-# decoder.summary()
-
-# VAE
-(x_train, y_train), (x_test, y_test) = keras.datasets.cifar10.load_data()
-cifar10_images = np.concatenate([x_train, x_test], axis=0)
-cifar10_images = cifar10_images.astype("float32") / 255
-vae = VAE(encoder, decoder)
-vae.compile(optimizer=keras.optimizers.legacy.Adam())
-vae.fit(cifar10_images, epochs=2, batch_size=128)
-
-plot_latent_space(vae)
-
-# Expands the dimensions of x_train by adding a new axis at the end
-x_train = np.expand_dims(x_train, -1)
-x_train = x_train.astype("float32") / 255
-plot_label_clusters(vae, x_train, y_train)"""
