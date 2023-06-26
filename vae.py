@@ -1,6 +1,5 @@
 import numpy as np
 import tensorflow as tf
-from keras import Input
 from keras import layers
 from keras.optimizers.legacy import Adam
 from matplotlib import pyplot as plt
@@ -284,7 +283,6 @@ decoder = Decoder(latent_dimension)
 
 (x_train, y_train), (_, _) = keras.datasets.cifar10.load_data()
 x_train = x_train.astype("float32") / 255
-
 vae = VAE(encoder, decoder)
 vae.compile(optimizer=Adam())
 vae.fit(x_train, epochs=2, batch_size=128)

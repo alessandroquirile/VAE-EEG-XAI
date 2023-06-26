@@ -2,6 +2,7 @@ import os
 
 import mne.io
 import numpy as np
+from PIL import Image
 from mne.filter import filter_data
 from mne.io import read_raw_bdf
 
@@ -65,11 +66,6 @@ def get_extrema(raw, l_freq, h_freq):
     return _get_extrema(raw, indices, l_freq, h_freq)
 
 
-def _blinks_rarely(subject):
-    subjects_who_blink_rarely = ['s01.bdf', 's03.bdf', 's16.bdf', 's18.bdf', 's21.bdf']
-    return subject in subjects_who_blink_rarely
-
-
 def _crop(raw: mne.io.Raw, sample_index: int) -> mne.io.Raw:
     sample_rate = get_sample_rate(raw)
     n_samples_in_1_minute = _get_number_of_samples_in_1_minute(sample_rate)
@@ -107,3 +103,9 @@ def _get_number_of_samples_in_1_minute(sample_rate: int):
     seconds_in_1_minute = 60
     n_samples_in_1_minute = sample_rate * seconds_in_1_minute
     return n_samples_in_1_minute
+
+
+def image_to_numpy(path_to_image: str):
+    img = Image.open(path_to_image).convert('RGB')
+    numpy_img = np.array(img)
+    return numpy_img
