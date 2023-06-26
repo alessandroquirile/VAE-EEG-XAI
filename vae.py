@@ -1,6 +1,8 @@
 import numpy as np
 import tensorflow as tf
+from keras import Input
 from keras import layers
+from keras.optimizers.legacy import Adam
 from matplotlib import pyplot as plt
 from tensorflow import keras
 
@@ -252,7 +254,7 @@ class Decoder(keras.Model):
         :param latent_dimension: The dimensionality of the latent space.
         """
         super(Decoder, self).__init__()
-        self.latent_dim = latent_dimension
+        self.latent_dimension = latent_dimension
         self.dense = layers.Dense(units=8 * 8 * 64, activation="relu")
         self.reshape = layers.Reshape((8, 8, 64))
         self.deconv1 = layers.Conv2DTranspose(filters=64, kernel_size=3, activation="relu", strides=2, padding="same")
@@ -277,22 +279,15 @@ class Decoder(keras.Model):
 
 
 latent_dimension = 2
-
 encoder = Encoder(latent_dimension)
-encoder_inputs = keras.Input(shape=(32, 32, 3))  # shape is [None, 32, 32, 3] = [batch_size, height, width, depth]
-z_mean, z_log_var, z = encoder(encoder_inputs)
-
 decoder = Decoder(latent_dimension)
-latent_inputs = keras.Input(shape=(latent_dimension,))
-decoder_outputs = decoder(latent_inputs)
 
 (x_train, y_train), (_, _) = keras.datasets.cifar10.load_data()
 x_train = x_train.astype("float32") / 255
 
 vae = VAE(encoder, decoder)
-vae.compile(optimizer=keras.optimizers.legacy.Adam())
+vae.compile(optimizer=Adam())
 vae.fit(x_train, epochs=2, batch_size=128)
 
 plot_latent_space(vae)
-
 plot_label_clusters(vae, x_train, y_train)
