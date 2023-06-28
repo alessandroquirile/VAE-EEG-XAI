@@ -166,6 +166,11 @@ class VAE(keras.Model):
             "kl_loss": self.kl_loss_tracker.result(),
         }
 
+    def call(self, inputs, training=None, mask=None):
+        _, _, z = encoder(inputs)
+        outputs = decoder(z)
+        return outputs
+
 
 class Encoder(keras.Model):
     """
@@ -177,10 +182,11 @@ class Encoder(keras.Model):
     Attributes:
 
     - latent_dim (int): The dimensionality of the latent space.
-    - conv1 (keras.layers.Conv2D): Convolutional layer 1.
-    - conv2 (keras.layers.Conv2D): Convolutional layer 2.
+    - conv_block1 (keras.Sequential): Sequential model for the first convolutional block.
+    - conv_block2 (keras.Sequential): Sequential model for the second convolutional block.
+    - conv_block3 (keras.Sequential): Sequential model for the third convolutional block.
     - flatten (keras.layers.Flatten): Flatten layer.
-    - dense1 (keras.layers.Dense): Dense layer 1.
+    - dense (keras.layers.Dense): Dense layer for the output.
     - z_mean (keras.layers.Dense): Dense layer for the mean of the latent space.
     - z_log_var (keras.layers.Dense): Dense layer for the log variance of the latent space.
     - sampling (function): Function for sampling from the latent space distribution.
@@ -198,10 +204,20 @@ class Encoder(keras.Model):
         """
         super(Encoder, self).__init__()
         self.latent_dim = latent_dimension
-        self.conv1 = layers.Conv2D(filters=32, kernel_size=3, activation="relu", strides=2, padding="same")
-        self.conv2 = layers.Conv2D(filters=64, kernel_size=3, activation="relu", strides=2, padding="same")
+        self.conv_block1 = keras.Sequential([
+            layers.Conv2D(filters=64, kernel_size=3, activation="relu", strides=2, padding="same"),
+            layers.BatchNormalization()
+        ])
+        self.conv_block2 = keras.Sequential([
+            layers.Conv2D(filters=128, kernel_size=3, activation="relu", strides=2, padding="same"),
+            layers.BatchNormalization()
+        ])
+        self.conv_block3 = keras.Sequential([
+            layers.Conv2D(filters=256, kernel_size=3, activation="relu", strides=2, padding="same"),
+            layers.BatchNormalization()
+        ])
         self.flatten = layers.Flatten()
-        self.dense1 = layers.Dense(units=16, activation="relu")
+        self.dense = layers.Dense(units=100, activation="relu")
         self.z_mean = layers.Dense(latent_dimension, name="z_mean")
         self.z_log_var = layers.Dense(latent_dimension, name="z_log_var")
         self.sampling = sample
@@ -215,10 +231,11 @@ class Encoder(keras.Model):
         :param mask: Mask tensor.
         :return: Tuple containing the mean, log variance, and sampled representation from the latent space.
         """
-        x = self.conv1(inputs)
-        x = self.conv2(x)
+        x = self.conv_block1(inputs)
+        x = self.conv_block2(x)
+        x = self.conv_block3(x)
         x = self.flatten(x)
-        x = self.dense1(x)
+        x = self.dense(x)
         z_mean = self.z_mean(x)
         z_log_var = self.z_log_var(x)
         z = self.sampling(z_mean, z_log_var)
@@ -235,11 +252,16 @@ class Decoder(keras.Model):
     Attributes:
 
     - latent_dim (int): The dimensionality of the latent space.
-    - dense (keras.layers.Dense): Dense layer.
+    - dense1 (keras.layers.Dense): Dense layer 1.
+    - dense2 (keras.layers.Dense): Dense layer 2.
+    - dense3 (keras.layers.Dense): Dense layer 3.
     - reshape (keras.layers.Reshape): Reshape layer.
     - deconv1 (keras.layers.Conv2DTranspose): Convolutional transpose layer 1.
     - deconv2 (keras.layers.Conv2DTranspose): Convolutional transpose layer 2.
     - deconv3 (keras.layers.Conv2DTranspose): Convolutional transpose layer 3.
+    - deconv4 (keras.layers.Conv2DTranspose): Convolutional transpose layer 4.
+    - deconv5 (keras.layers.Conv2DTranspose): Convolutional transpose layer 5.
+    - deconv6 (keras.layers.Conv2DTranspose): Convolutional transpose layer 6.
 
     Methods:
 
@@ -253,12 +275,41 @@ class Decoder(keras.Model):
         :param latent_dimension: The dimensionality of the latent space.
         """
         super(Decoder, self).__init__()
-        self.latent_dimension = latent_dimension
-        self.dense = layers.Dense(units=8 * 8 * 64, activation="relu")
-        self.reshape = layers.Reshape((8, 8, 64))
-        self.deconv1 = layers.Conv2DTranspose(filters=64, kernel_size=3, activation="relu", strides=2, padding="same")
-        self.deconv2 = layers.Conv2DTranspose(filters=32, kernel_size=3, activation="relu", strides=2, padding="same")
-        self.deconv3 = layers.Conv2DTranspose(filters=3, kernel_size=3, activation="sigmoid", padding="same")
+        self.latent_dim = latent_dimension
+        self.dense1 = keras.Sequential([
+            layers.Dense(units=100, activation="relu"),
+            layers.BatchNormalization()
+        ])
+        self.dense2 = keras.Sequential([
+            layers.Dense(units=1024, activation="relu"),
+            layers.BatchNormalization()
+        ])
+        self.dense3 = keras.Sequential([
+            layers.Dense(units=4096, activation="relu"),
+            layers.BatchNormalization()
+        ])
+        self.reshape = layers.Reshape((4, 4, 256))
+        self.deconv1 = keras.Sequential([
+            layers.Conv2DTranspose(filters=256, kernel_size=3, activation="relu", strides=2, padding="same"),
+            layers.BatchNormalization()
+        ])
+        self.deconv2 = keras.Sequential([
+            layers.Conv2DTranspose(filters=128, kernel_size=3, activation="relu", strides=1, padding="same"),
+            layers.BatchNormalization()
+        ])
+        self.deconv3 = keras.Sequential([
+            layers.Conv2DTranspose(filters=128, kernel_size=3, activation="relu", strides=2, padding="same"),
+            layers.BatchNormalization()
+        ])
+        self.deconv4 = keras.Sequential([
+            layers.Conv2DTranspose(filters=64, kernel_size=3, activation="relu", strides=1, padding="same"),
+            layers.BatchNormalization()
+        ])
+        self.deconv5 = keras.Sequential([
+            layers.Conv2DTranspose(filters=64, kernel_size=3, activation="relu", strides=2, padding="same"),
+            layers.BatchNormalization()
+        ])
+        self.deconv6 = layers.Conv2DTranspose(filters=3, kernel_size=3, activation="sigmoid", padding="same")
 
     def call(self, inputs, training=None, mask=None):
         """
@@ -269,23 +320,39 @@ class Decoder(keras.Model):
         :param mask: Mask tensor.
         :return: Output data generated by the decoder.
         """
-        x = self.dense(inputs)
+        x = self.dense1(inputs)
+        x = self.dense2(x)
+        x = self.dense3(x)
         x = self.reshape(x)
         x = self.deconv1(x)
         x = self.deconv2(x)
-        decoder_outputs = self.deconv3(x)
+        x = self.deconv3(x)
+        x = self.deconv4(x)
+        x = self.deconv5(x)
+        decoder_outputs = self.deconv6(x)
         return decoder_outputs
 
 
-latent_dimension = 2
+latent_dimension = 100
 encoder = Encoder(latent_dimension)
 decoder = Decoder(latent_dimension)
 
-(x_train, y_train), (_, _) = keras.datasets.cifar10.load_data()
+(x_train, y_train), (_, _) = keras.datasets.cifar10.load_data()  # x_train shape is (50000, 32, 32, 3)
 x_train = x_train.astype("float32") / 255
 vae = VAE(encoder, decoder)
 vae.compile(optimizer=Adam())
-vae.fit(x_train, epochs=2, batch_size=128)
+vae.fit(x_train, epochs=100, batch_size=32)
+
+# Demo
+image_index = 100
+plt.title(f"Original image {image_index}")
+plt.imshow(x_train[image_index])
+plt.show()
+
+plt.title(f"Reconstructed image {image_index}")
+x_reconstructed = vae(x_train[:1000, :])
+plt.imshow(x_reconstructed[image_index])
+plt.show()
 
 plot_latent_space(vae)
 plot_label_clusters(vae, x_train, y_train)
