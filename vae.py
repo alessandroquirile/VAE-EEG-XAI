@@ -341,7 +341,11 @@ decoder = Decoder(latent_dimension)
 x_train = x_train.astype("float32") / 255
 vae = VAE(encoder, decoder)
 vae.compile(optimizer=Adam())
-vae.fit(x_train, epochs=100, batch_size=32)
+vae.fit(x_train, epochs=200, batch_size=32)
+
+if latent_dimension == 2:
+    plot_latent_space(vae)
+    plot_label_clusters(vae, x_train, y_train)
 
 # Demo
 image_index = 100
@@ -353,6 +357,3 @@ plt.title(f"Reconstructed image {image_index}")
 x_reconstructed = vae(x_train[:1000, :])
 plt.imshow(x_reconstructed[image_index])
 plt.show()
-
-plot_latent_space(vae)
-plot_label_clusters(vae, x_train, y_train)
