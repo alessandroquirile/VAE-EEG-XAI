@@ -45,10 +45,7 @@ def plot_latent_space(vae, points_to_sample=30, figsize=15):
             z_sample = np.array([[xi, yi]])
             x_decoded = vae.decoder.predict(z_sample)
             digit = x_decoded[0].reshape(image_size, image_size, 3)
-            figure[
-            i * image_size: (i + 1) * image_size,
-            j * image_size: (j + 1) * image_size,
-            ] = digit
+            figure[i * image_size: (i + 1) * image_size, j * image_size: (j + 1) * image_size, ] = digit
 
     plt.figure(figsize=(figsize, figsize))
     start_range = image_size // 2
@@ -341,7 +338,9 @@ decoder = Decoder(latent_dimension)
 x_train = x_train.astype("float32") / 255
 vae = VAE(encoder, decoder)
 vae.compile(optimizer=Adam())
-vae.fit(x_train, epochs=200, batch_size=32)
+epochs = 200
+batch_size = 128
+vae.fit(x_train, epochs=epochs, batch_size=batch_size)
 
 if latent_dimension == 2:
     plot_latent_space(vae)
@@ -353,7 +352,8 @@ plt.title(f"Original image {image_index}")
 plt.imshow(x_train[image_index])
 plt.show()
 
-plt.title(f"Reconstructed image {image_index}")
-x_reconstructed = vae(x_train[:1000, :])
-plt.imshow(x_reconstructed[image_index])
+plt.title(f"Reconstructed image {image_index}, latent_dim = {latent_dimension}, epochs = {epochs}, "
+          f"batch_size = {batch_size}")
+x_train_reconstructed = vae.predict(x_train)
+plt.imshow(x_train_reconstructed[image_index])
 plt.show()
