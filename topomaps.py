@@ -115,7 +115,7 @@ if __name__ == '__main__':
         montage = mne.channels.make_standard_montage('biosemi32')
         raw.set_montage(montage)
 
-        # Filtering and then resampling avoidss aliasing
+        # Filtering and then resampling avoids aliasing
         raw.filter(l_freq=l_freq, h_freq=h_freq, fir_design='firwin')
         raw.resample(sfreq=128)  # così si avranno 128 MAPPE PER SECONDO
 
@@ -142,6 +142,7 @@ if __name__ == '__main__':
             # We shall focus on Fp1 and Fp2 only since they are the closest electrodes wrt the eyes
             events = find_eog_events(cropped_raw_fp1_fp2, ch_name=FP1_FP2, thresh=thresh, l_freq=1, h_freq=10)
 
+            # Let's save some useful information on disk
             save_events('events', subject, trial, events, index, sample_rate,
                         subject_lowest_peak, subject_highest_peak, magic_number,
                         trial_lowest_peak, trial_highest_peak,
@@ -189,7 +190,8 @@ if __name__ == '__main__':
             mne.viz.topomap._make_head_outlines = _make_head_outlines_new
             mne.viz.topomap._draw_outlines = _draw_outlines_new
             for i in range(0, dataTrial.shape[1]):
-                if i in idx_blinks_about:  # prova, solo le mappe dell'intorno del blink
+                if 1:  # tutte le mappe
+                # if i in idx_blinks_about:  # prova, solo le mappe dell'intorno del blink
                     data_sample = dataTrial[:, i].reshape(len(EEG))
                     mne.viz.plot_topomap(data=data_sample,
                                          pos=raw.info,
@@ -223,7 +225,7 @@ if __name__ == '__main__':
                     else:  # non blink
                         label = 0
 
-                    trialID = str(trial)  # test
+                    trialID = str(trial)
                     subject_without_extension = subject.rsplit(".", 1)[0]
                     TOPOMAPS_DIR = './topomaps/' + subject_without_extension + '/' + trialID + '/'
 
