@@ -1,8 +1,11 @@
 import numpy as np
+import pandas as pd
+import seaborn as sns
 import tensorflow as tf
 from keras import layers
 from keras.optimizers.legacy import Adam
 from matplotlib import pyplot as plt
+from sklearn.manifold import TSNE
 from tensorflow import keras
 
 
@@ -21,7 +24,7 @@ def sample(z_mean, z_log_var):
     return z_mean + stddev * epsilon
 
 
-def plot_latent_space(vae, points_to_sample=30, figsize=15):
+def plot_latent_space(vae, data, points_to_sample=30, figsize=15):
     """
     Plots the latent space of a Variational Autoencoder (VAE).
     This function generates a 2D manifold plot of digits in the latent space
@@ -29,25 +32,51 @@ def plot_latent_space(vae, points_to_sample=30, figsize=15):
     decoder model based on a specific location in the latent space.
 
     :param vae: The trained VAE model.
+    :param data: Data to have a latent representation of
     :param points_to_sample: The number of points to sample along each axis of the plot. Default is 30.
     :param figsize: The size of the figure (width and height) in inches. Default is 15.
     :return: None (displays the plot).
     """
     image_size = 32
     scale = 1.0
-    figure = np.zeros((image_size * points_to_sample, image_size * points_to_sample, 3))
-    # linearly spaced coordinates corresponding to the 2D plot in the latent space
-    grid_x = np.linspace(-scale, scale, points_to_sample)
-    grid_y = np.linspace(-scale, scale, points_to_sample)[::-1]
+    n_channels = 3  # RGB
 
+    # Create an empty figure to store the generated images
+    # Width: image_size * points_to_sample (default 32x15 = 480)
+    # Height: image_size * points_to_sample (default 32x15 = 480)
+    # Channels: 3 (RGB)
+    figure = np.zeros((image_size * points_to_sample, image_size * points_to_sample, n_channels))
+
+    # Define linearly spaced coordinates corresponding to the 2D plot in the latent space
+    grid_x = np.linspace(-scale, scale, points_to_sample)
+    grid_y = np.linspace(-scale, scale, points_to_sample)[::-1]  # Reverse the order of grid_y
+
+    # Apply t-SNE to the latent space
+    z_mean, _, _ = vae.encoder.predict(data)
+    tsne = TSNE(n_components=2, verbose=1)
+    z_mean_reduced = tsne.fit_transform(z_mean)
+
+    # Generate the images by iterating over the grid coordinates
     for i, yi in enumerate(grid_y):
         for j, xi in enumerate(grid_x):
-            z_sample = np.array([[xi, yi]])
-            x_decoded = vae.decoder.predict(z_sample)
-            digit = x_decoded[0].reshape(image_size, image_size, 3)
+            # Find the nearest t-SNE point to the current coordinates
+            dist = np.sqrt((z_mean_reduced[:, 0] - xi) ** 2 + (z_mean_reduced[:, 1] - yi) ** 2)
+            idx = np.argmin(dist)
+            z_sample = z_mean[idx]
+
+            # Decode the latent sample to generate an image
+            x_decoded = vae.decoder.predict(np.expand_dims(z_sample, axis=0))
+
+            # Reshape the decoded image to match the desired image size
+            digit = x_decoded.reshape(image_size, image_size, n_channels)
+
+            # Add the digit to the corresponding position in the figure
             figure[i * image_size: (i + 1) * image_size, j * image_size: (j + 1) * image_size, ] = digit
 
+    # Plotting the figure
     plt.figure(figsize=(figsize, figsize))
+
+    # Define the tick positions and labels for the x and y axes
     start_range = image_size // 2
     end_range = points_to_sample * image_size + start_range
     pixel_range = np.arange(start_range, end_range, image_size)
@@ -55,32 +84,45 @@ def plot_latent_space(vae, points_to_sample=30, figsize=15):
     sample_range_y = np.round(grid_y, 1)
     plt.xticks(pixel_range, sample_range_x)
     plt.yticks(pixel_range, sample_range_y)
+
+    # Set the x and y axis labels
     plt.xlabel("z[0]")
     plt.ylabel("z[1]")
-    plt.imshow(figure, cmap="Greys_r")
+
+    # Display the figure
+    plt.imshow(figure)
     plt.show()
 
 
 def plot_label_clusters(vae, data, labels):
     """
-    Plots the digit classes in the latent space of a Variational Autoencoder (VAE).
-
-    This function generates a 2D plot of the digit classes in the latent space
-    of the VAE. Each point in the plot represents a digit from the given data,
-    projected onto the latent space based on the encoder model of the VAE.
-
-    :param vae: The trained VAE model.
-    :param data: The input data containing the digits.
-    :param labels: The corresponding labels for the digits.
-    :return: None (displays the plot).
+    Plots a t-SNE projection of the given data, with labels represented by different colors.
+    :param vae: The trained VAE (Variational Autoencoder) model.
+    :param data: Input data
+    :param labels: Array of labels corresponding to the data
+    :return: None (displays the plot)
     """
     z_mean, _, _ = vae.encoder.predict(data)
 
-    plt.figure(figsize=(12, 10))
-    plt.scatter(z_mean[:, 0], z_mean[:, 1], c=labels)
-    plt.colorbar()
-    plt.xlabel("z[0]")
-    plt.ylabel("z[1]")
+    # Reshape data to (n_images, data[1] x ... x data[n])
+    # The -1 argument in reshape() automatically calculates the appropriate size
+    # for the second dimension based on the other dimension(s)
+    n_images = data.shape[0]  # 50000 for cifar10
+    data = np.reshape(data, (n_images, -1))
+
+    tsne = TSNE(n_components=2, verbose=1)
+    z_mean_reduced = tsne.fit_transform(data)
+
+    df = pd.DataFrame()
+    df["labels"] = labels.flatten()
+    df["comp-1"] = z_mean_reduced[:, 0]
+    df["comp-2"] = z_mean_reduced[:, 1]
+
+    # Cifar10 contains 10 classes
+    distinct_labels = np.unique(labels)
+    n_colors = len(distinct_labels)
+    sns.scatterplot(data=df, x="comp-1", y="comp-2", hue=df.labels.tolist(),
+                    palette=sns.color_palette("hls", n_colors)).set(title="Data t-SNE projection")
     plt.show()
 
 
@@ -330,11 +372,13 @@ class Decoder(keras.Model):
         return decoder_outputs
 
 
+# tf.debugging.set_log_device_placement(True)
+
 latent_dimension = 100
 encoder = Encoder(latent_dimension)
 decoder = Decoder(latent_dimension)
 
-(x_train, y_train), (_, _) = keras.datasets.cifar10.load_data()  # x_train shape is (50000, 32, 32, 3)
+(x_train, y_train), (_, _) = keras.datasets.cifar10.load_data()  # x shape is (50000, 32, 32, 3)
 x_train = x_train.astype("float32") / 255
 vae = VAE(encoder, decoder)
 vae.compile(optimizer=Adam())
@@ -342,11 +386,10 @@ epochs = 200
 batch_size = 128
 vae.fit(x_train, epochs=epochs, batch_size=batch_size)
 
-if latent_dimension == 2:
-    plot_latent_space(vae)
-    plot_label_clusters(vae, x_train, y_train)
+plot_latent_space(vae, x_train)
+plot_label_clusters(vae, x_train, y_train)
 
-# Demo
+# Check reconstruction skills
 image_index = 100
 plt.title(f"Original image {image_index}")
 plt.imshow(x_train[image_index])

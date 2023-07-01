@@ -121,7 +121,7 @@ if __name__ == '__main__':
 
         # Computing the extrema for each subject (instead of for each trial) handles the scenario in which
         # a subject does not blink at all watching a trial:
-        # their extrema would be too close to the baseline and the number of FP blinks would be too large
+        # their extrema would be too close to the baseline and the number of false positive blinks would be too large
         subject_lowest_peak, subject_highest_peak = get_extrema(raw, l_freq, h_freq)
 
         indices = get_indices_where_video_start(raw)
@@ -189,9 +189,15 @@ if __name__ == '__main__':
             # Monkey patches
             mne.viz.topomap._make_head_outlines = _make_head_outlines_new
             mne.viz.topomap._draw_outlines = _draw_outlines_new
-            for i in range(0, dataTrial.shape[1]):
+
+            # Il loop for i in range(0, dataTrial.shape[1]) genera circa 7000 immagini per ogni trial
+            # Potrebbe essere eccessivo, quindi riduco a (circa) 1000 immagini
+            # Siccome è una prova, la cartella si chiamerà topomaps2/
+            # Attenzione: posso perdermi dei blink se il numero di images_for_each_trial è troppo piccolo
+            images_for_each_trial = 1000
+            for i in range(0, dataTrial.shape[1], int(dataTrial.shape[1] / images_for_each_trial)):
                 if 1:  # tutte le mappe
-                # if i in idx_blinks_about:  # prova, solo le mappe dell'intorno del blink
+                    # if i in idx_blinks_about:  # prova, solo le mappe dell'intorno del blink
                     data_sample = dataTrial[:, i].reshape(len(EEG))
                     mne.viz.plot_topomap(data=data_sample,
                                          pos=raw.info,
@@ -210,7 +216,8 @@ if __name__ == '__main__':
                                          # PROBLEMA RISOLTO DA SABATINA! (alcune mappe erano tutte rosse, usando RdBu_r funziona bene)
                                          cnorm=None,
                                          axes=None,
-                                         show=False, onselect=None
+                                         show=False,
+                                         onselect=None
                                          )
 
                     # LABELING
@@ -227,16 +234,16 @@ if __name__ == '__main__':
 
                     trialID = str(trial)
                     subject_without_extension = subject.rsplit(".", 1)[0]
-                    TOPOMAPS_DIR = './topomaps/' + subject_without_extension + '/' + trialID + '/'
+                    TOPOMAPS_DIR = './topomaps2/' + subject_without_extension + '/' + trialID + '/'
 
                     # If exist_ok is True, a FileExistsError is not raised if the target directory already exists
                     os.makedirs(TOPOMAPS_DIR, exist_ok=True)
 
-                    # fileName: soggettoXY/trialXY/sampleXY_blink_LABEL.png
                     fileName = TOPOMAPS_DIR + 'topomapSample_' + str(i) + '_blink_' + str(label) + ".png"
                     fig = plt.gcf()
                     fig.canvas.draw()
-                    plt.savefig(fileName, format="png",
+                    plt.savefig(fileName,
+                                format="png",
                                 dpi=41,
                                 # 600 per test SOLO
                                 # 41 per avere immagini 32x32

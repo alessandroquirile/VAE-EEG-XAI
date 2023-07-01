@@ -6,7 +6,6 @@ from PIL import Image
 from mne.filter import filter_data
 from mne.io import read_raw_bdf
 
-from deap_constants import *
 from eeg_constants import FP1_FP2, EOG, MISC, STIM_CHANNEL
 
 
@@ -16,6 +15,7 @@ def read_bdf(path: str, subject: str) -> mne.io.Raw:
 
 
 def get_indices_where_video_start(raw: mne.io.Raw) -> list[int]:
+    STATUS_CHANNEL_ID = 47
     sample_rate = get_sample_rate(raw)
     n_samples_in_1_minute = _get_number_of_samples_in_1_minute(sample_rate)
     # https://www.eecs.qmul.ac.uk/mmv/datasets/deap/readme.html
