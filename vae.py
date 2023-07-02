@@ -3,6 +3,7 @@ import pandas as pd
 import seaborn as sns
 import tensorflow as tf
 from keras import layers
+from keras.callbacks import EarlyStopping
 from keras.optimizers.legacy import Adam
 from matplotlib import pyplot as plt
 from sklearn.manifold import TSNE
@@ -446,15 +447,14 @@ decoder = Decoder(latent_dimension)
 x_train = x_train.astype("float32") / 255.0
 x_test = x_test.astype("float32") / 255.0
 
-# Split the data into training, validation, and test sets
-validation_size = 0.2  # 20% of the training data will be used for validation
-x_train, x_val, y_train, y_val = train_test_split(x_train, y_train, test_size=validation_size)
-
+# Training
+x_train, x_val, y_train, y_val = train_test_split(x_train, y_train, test_size=0.2)
+early_stopping = EarlyStopping(monitor="val_loss", patience=3, mode="min", verbose=1)
 vae = VAE(encoder, decoder)
 vae.compile(optimizer=Adam())
-epochs = 200
+epochs = 10
 batch_size = 128
-history = vae.fit(x_train, epochs=epochs, batch_size=batch_size, validation_data=(x_val,))
+history = vae.fit(x_train, epochs=epochs, batch_size=batch_size, validation_data=(x_val,), callbacks=[early_stopping])
 
 # Some visual information about learning
 plot_metric(history, "loss")
