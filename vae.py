@@ -6,6 +6,7 @@ from keras import layers
 from keras.optimizers.legacy import Adam
 from matplotlib import pyplot as plt
 from sklearn.manifold import TSNE
+from sklearn.model_selection import train_test_split
 from tensorflow import keras
 
 
@@ -126,6 +127,16 @@ def plot_label_clusters(vae, data, labels):
     plt.show()
 
 
+def plot_metric(history, metric):
+    plt.plot(history.history[metric])
+    plt.plot(history.history['val_' + metric])
+    plt.title(metric)
+    plt.ylabel(metric)
+    plt.xlabel('epoch')
+    plt.legend(['train', 'validation'])
+    plt.show()
+
+
 class VAE(keras.Model):
     """
     Variational Autoencoder (VAE) model implementation.
@@ -137,7 +148,7 @@ class VAE(keras.Model):
 
     - encoder (keras.Model): The encoder model responsible for encoding input data into latent space.
     - decoder (keras.Model): The decoder model responsible for decoding latent space representations into output data.
-    - total_loss_tracker (keras.metrics.Mean): A metric tracker for the total loss of the VAE during training.
+    - total_loss_tracker (keras.metrics.Mean): A metric tracker for the total loss of the VAE during training (reconstruction + kl).
     - reconstruction_loss_tracker (keras.metrics.Mean): A metric tracker for the reconstruction loss component of the VAE during training.
     - kl_loss_tracker (keras.metrics.Mean): A metric tracker for the KL divergence loss component of the VAE during training.
 
@@ -161,6 +172,11 @@ class VAE(keras.Model):
         self.reconstruction_loss_tracker = keras.metrics.Mean(name="reconstruction_loss")
         self.kl_loss_tracker = keras.metrics.Mean(name="kl_loss")
 
+    def call(self, inputs, training=None, mask=None):
+        _, _, z = encoder(inputs)
+        outputs = decoder(z)
+        return outputs
+
     @property
     def metrics(self):
         """
@@ -181,8 +197,11 @@ class VAE(keras.Model):
         :return: Dictionary containing the updated metric values.
         """
         with tf.GradientTape() as tape:
+            # Forward pass
             z_mean, z_log_var, z = self.encoder(data)
             reconstruction = self.decoder(z)
+
+            # Compute losses
             reconstruction_loss = tf.reduce_mean(
                 tf.reduce_sum(
                     keras.losses.binary_crossentropy(data, reconstruction), axis=(1, 2)
@@ -192,9 +211,13 @@ class VAE(keras.Model):
             kl_loss = tf.reduce_mean(tf.reduce_sum(kl_loss, axis=1))
             total_loss = reconstruction_loss + kl_loss
 
+        # Compute gradient
         grads = tape.gradient(total_loss, self.trainable_weights)
+
+        # Update weights
         self.optimizer.apply_gradients(zip(grads, self.trainable_weights))
 
+        # Update my own metrics
         self.total_loss_tracker.update_state(total_loss)
         self.reconstruction_loss_tracker.update_state(reconstruction_loss)
         self.kl_loss_tracker.update_state(kl_loss)
@@ -205,10 +228,48 @@ class VAE(keras.Model):
             "kl_loss": self.kl_loss_tracker.result(),
         }
 
-    def call(self, inputs, training=None, mask=None):
-        _, _, z = encoder(inputs)
-        outputs = decoder(z)
-        return outputs
+    def test_step(self, data):
+        """
+        Performs a forward pass and computes losses for a single testing step in a Variational Autoencoder.
+
+        Parameters:
+            - data (tensor): The input data for testing.
+
+        Returns:
+            dict: A dictionary containing the computed losses for the testing step.
+
+        Example usage:
+            test_data = ...
+            losses = model.test_step(test_data)
+
+        Note:
+            This method is typically used as part of the testing/evaluation loop in a Variational Autoencoder model.
+
+        """
+        # Forward pass
+        z_mean, z_log_var, z = self.encoder(data)
+        reconstruction = self.decoder(z)
+
+        # Compute losses
+        reconstruction_loss = tf.reduce_mean(
+            tf.reduce_sum(
+                keras.losses.binary_crossentropy(data, reconstruction), axis=(1, 2)
+            )
+        )
+        kl_loss = -0.5 * (1 + z_log_var - tf.square(z_mean) - tf.exp(z_log_var))
+        kl_loss = tf.reduce_mean(tf.reduce_sum(kl_loss, axis=1))
+        total_loss = reconstruction_loss + kl_loss
+
+        # Update my own metrics
+        self.total_loss_tracker.update_state(total_loss)
+        self.reconstruction_loss_tracker.update_state(reconstruction_loss)
+        self.kl_loss_tracker.update_state(kl_loss)
+
+        return {
+            "loss": self.total_loss_tracker.result(),
+            "reconstruction_loss": self.reconstruction_loss_tracker.result(),
+            "kl_loss": self.kl_loss_tracker.result(),
+        }
 
 
 class Encoder(keras.Model):
@@ -378,13 +439,27 @@ latent_dimension = 100
 encoder = Encoder(latent_dimension)
 decoder = Decoder(latent_dimension)
 
-(x_train, y_train), (_, _) = keras.datasets.cifar10.load_data()  # x shape is (50000, 32, 32, 3)
-x_train = x_train.astype("float32") / 255
+# Load the CIFAR-10 dataset
+(x_train, y_train), (x_test, y_test) = keras.datasets.cifar10.load_data()  # x shape is (50000, 32, 32, 3)
+
+# Normalize the data
+x_train = x_train.astype("float32") / 255.0
+x_test = x_test.astype("float32") / 255.0
+
+# Split the data into training, validation, and test sets
+validation_size = 0.2  # 20% of the training data will be used for validation
+x_train, x_val, y_train, y_val = train_test_split(x_train, y_train, test_size=validation_size)
+
 vae = VAE(encoder, decoder)
 vae.compile(optimizer=Adam())
 epochs = 200
 batch_size = 128
-vae.fit(x_train, epochs=epochs, batch_size=batch_size)
+history = vae.fit(x_train, epochs=epochs, batch_size=batch_size, validation_data=(x_val,))
+
+# Some visual information about learning
+plot_metric(history, "loss")
+plot_metric(history, "reconstruction_loss")
+plot_metric(history, "kl_loss")
 
 plot_latent_space(vae, x_train)
 plot_label_clusters(vae, x_train, y_train)
