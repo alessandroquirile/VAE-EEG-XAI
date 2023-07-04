@@ -540,13 +540,13 @@ if __name__ == '__main__':
     # Check reconstruction skills
     image_index = 100
     plt.title(f"Original image {image_index}")
-    original_image = x_train[image_index]
+    original_image = x_test[image_index]
     plt.imshow(original_image)
     plt.show()
 
     plt.title(f"Reconstructed image {image_index}, latent_dim = {latent_dimension}, epochs = {epochs}, "
               f"batch_size = {batch_size}")
-    x_train_reconstructed = vae.predict(x_train)
-    reconstructed_image = x_train_reconstructed[image_index]
+    x_test_reconstructed = vae.predict(x_test)
+    reconstructed_image = x_test_reconstructed[image_index]
     plt.imshow(reconstructed_image)
     plt.show()
