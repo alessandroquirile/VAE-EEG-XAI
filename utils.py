@@ -2,7 +2,6 @@ import os
 
 import mne.io
 import numpy as np
-from PIL import Image
 from mne.filter import filter_data
 from mne.io import read_raw_bdf
 
@@ -103,9 +102,3 @@ def _get_number_of_samples_in_1_minute(sample_rate: int):
     seconds_in_1_minute = 60
     n_samples_in_1_minute = sample_rate * seconds_in_1_minute
     return n_samples_in_1_minute
-
-
-def image_to_numpy(path_to_image: str):
-    img = Image.open(path_to_image).convert('RGB')
-    numpy_img = np.array(img)
-    return numpy_img

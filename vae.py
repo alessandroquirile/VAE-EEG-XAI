@@ -1,14 +1,77 @@
+import os
+
+import cv2
 import numpy as np
 import pandas as pd
 import seaborn as sns
 import tensorflow as tf
 from keras import layers
-from keras.callbacks import EarlyStopping
 from keras.optimizers.legacy import Adam
+from keras.src.callbacks import EarlyStopping
 from matplotlib import pyplot as plt
 from sklearn.manifold import TSNE
 from sklearn.model_selection import train_test_split
 from tensorflow import keras
+
+
+def load_data(data_path, test_size):
+    """
+    Loads image data from a specified folder path, preprocesses the images,
+    and splits the data into training and testing sets.
+
+    Args:
+        data_path (str): The path to the folder containing image files.
+        test_size (float, optional): The proportion of the data to be used for testing.
+            Defaults to 0.2.
+
+    Returns:
+        tuple: A tuple containing two tuples:
+            - The first tuple contains the training data: (x_train, y_train)
+                - x_train (ndarray): Array of preprocessed training images.
+                - y_train (ndarray): Array of corresponding training labels.
+            - The second tuple contains the testing data: (x_test, y_test)
+                - x_test (ndarray): Array of preprocessed testing images.
+                - y_test (ndarray): Array of corresponding testing labels.
+
+    Raises:
+        ValueError: If no image files are found in the specified folder.
+    """
+
+    file_names = []
+    labels = []
+
+    # Iterate through the folder and its subfolders to find image files
+    for root, _, files in os.walk(data_path):
+        for file_name in files:
+            # Check if the file name starts with 'topomapSample_' and ends with '.png'
+            if file_name.startswith('topomapSample_') and file_name.endswith('.png'):
+                # Extract the label from the file name
+                label = int(file_name.split('_')[-1][0])
+                file_names.append(os.path.join(root, file_name))
+                labels.append(label)
+
+    # Check if any image files were found
+    if len(file_names) == 0:
+        raise ValueError("No image files found in the specified folder.")
+
+    # Sort the file names and labels to ensure consistent ordering
+    file_names, labels = zip(*sorted(zip(file_names, labels)))
+
+    images = []
+    # Load and preprocess the images
+    for file_name in file_names:
+        image = cv2.imread(file_name)
+        image = cv2.resize(image, (32, 32))
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)  # original images are RGBA
+        images.append(image)
+
+    x = np.array(images)
+    y = np.array(labels)
+
+    # Split the data into training and testing sets
+    x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=test_size)
+
+    return (x_train, y_train), (x_test, y_test)
 
 
 def sample(z_mean, z_log_var):
@@ -434,47 +497,56 @@ class Decoder(keras.Model):
         return decoder_outputs
 
 
-# tf.debugging.set_log_device_placement(True)
+if __name__ == '__main__':
+    data_path = "topomaps_short/"
 
-latent_dimension = 100
-encoder = Encoder(latent_dimension)
-decoder = Decoder(latent_dimension)
+    # Load the data
+    (x_train, y_train), (x_test, y_test) = load_data(data_path, test_size=0.2)
 
-# Load the CIFAR-10 dataset
-(x_train, y_train), (x_test, y_test) = keras.datasets.cifar10.load_data()  # x shape is (50000, 32, 32, 3)
+    # Print the shapes
+    print("x_train shape:", x_train.shape)
+    print("y_train shape:", y_train.shape)
+    print("x_test shape:", x_test.shape)
+    print("y_test shape:", y_test.shape)
 
-# Normalize the data
-x_train = x_train.astype("float32") / 255.0
-x_test = x_test.astype("float32") / 255.0
+    # Normalize the data
+    x_train = x_train.astype("float32") / 255.0
+    x_test = x_test.astype("float32") / 255.0
 
-# Training
-x_train, x_val, y_train, y_val = train_test_split(x_train, y_train, test_size=0.2)
-early_stopping = EarlyStopping(monitor="val_loss", patience=20, mode="min", verbose=1)
-vae = VAE(encoder, decoder)
+    latent_dimension = 50
+    encoder = Encoder(latent_dimension)
+    decoder = Decoder(latent_dimension)
 
-# Epsilon=10**-4 seems to work better than the default one
-# Epsilon=0.1 seems to work better than episilon=10**-4
-vae.compile(Adam(epsilon=0.1))
-epochs = 200
-batch_size = 128
-history = vae.fit(x_train, epochs=epochs, batch_size=batch_size, validation_data=(x_val,), callbacks=[early_stopping])
+    # Training
+    x_train, x_val, y_train, y_val = train_test_split(x_train, y_train, test_size=0.2)
+    early_stopping = EarlyStopping(monitor="val_loss", patience=20, mode="min", verbose=1)
+    vae = VAE(encoder, decoder)
 
-# Plot learning curves
-plot_metric(history, "loss")
-plot_metric(history, "reconstruction_loss")
-plot_metric(history, "kl_loss")
+    # Epsilon=0.1 seems to work better than the other options
+    vae.compile(Adam(epsilon=0.1))
+    epochs = 250
+    batch_size = 32
+    history = vae.fit(x_train, epochs=epochs, batch_size=batch_size, validation_data=(x_val,),
+                      callbacks=[early_stopping])
 
-plot_latent_space(vae, x_train)
-plot_label_clusters(vae, x_train, y_train)
+    # Plot learning curves
+    plot_metric(history, "loss")
+    plot_metric(history, "reconstruction_loss")
+    plot_metric(history, "kl_loss")
 
-# Check reconstruction skills
-image_index = 100
-plt.title(f"Original image {image_index}")
-plt.imshow(x_train[image_index])
-plt.show()
+    plot_latent_space(vae, x_train)
+    plot_label_clusters(vae, x_train, y_train)
 
-plt.title(f"Reconstructed image {image_index}, latent_dim = {latent_dimension}, epochs = {epochs}, "
-          f"batch_size = {batch_size}")
-x_train_reconstructed = vae.predict(x_train)
-plt.imshow(x_train_reconstructed[image_index])
-plt.show()
+    # Check reconstruction skills
+    image_index = 100
+    plt.title(f"Original image {image_index}")
+    original_image = x_train[image_index]
+    plt.imshow(original_image)
+    plt.show()
+
+    plt.title(f"Reconstructed image {image_index}, latent_dim = {latent_dimension}, epochs = {epochs}, "
+              f"batch_size = {batch_size}")
+    x_train_reconstructed = vae.predict(x_train)
+    reconstructed_image = x_train_reconstructed[image_index]
+    plt.imshow(reconstructed_image)
+    plt.show()
