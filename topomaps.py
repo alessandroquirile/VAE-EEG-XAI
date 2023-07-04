@@ -190,67 +190,67 @@ if __name__ == '__main__':
             mne.viz.topomap._make_head_outlines = _make_head_outlines_new
             mne.viz.topomap._draw_outlines = _draw_outlines_new
 
-            # Il loop for i in range(0, dataTrial.shape[1]) genera circa 7000 immagini per ogni trial
-            # Potrebbe essere eccessivo, quindi riduco a (circa) 1000 immagini
-            # Siccome è una prova, la cartella si chiamerà topomaps2/
-            # Attenzione: posso perdermi dei blink se il numero di images_for_each_trial è troppo piccolo
-            images_for_each_trial = 1000
-            for i in range(0, dataTrial.shape[1], int(dataTrial.shape[1] / images_for_each_trial)):
-                if 1:  # tutte le mappe
-                    # if i in idx_blinks_about:  # prova, solo le mappe dell'intorno del blink
-                    data_sample = dataTrial[:, i].reshape(len(EEG))
-                    mne.viz.plot_topomap(data=data_sample,
-                                         pos=raw.info,
-                                         ch_type='eeg',
-                                         sensors=False,
-                                         names=None,
-                                         contours=0,
-                                         outlines='head',
-                                         sphere='eeglab',
-                                         # con eeglab i sensori si trovano più esternamente rispetto a None e i sensori sono più distanziati
-                                         image_interp='cubic',
-                                         extrapolate='auto',
-                                         border='mean',
-                                         vlim=(trial_lowest_peak, trial_highest_peak),
-                                         cmap='RdBu_r',
-                                         # PROBLEMA RISOLTO DA SABATINA! (alcune mappe erano tutte rosse, usando RdBu_r funziona bene)
-                                         cnorm=None,
-                                         axes=None,
-                                         show=False,
-                                         onselect=None
-                                         )
+            sec = 0.5
+            for j in idx_blinks:
+                # Ensure that  the indices are within the bounds of dataTrial
+                start_index = max(j - int(sec * sample_rate), 0)
+                end_index = min(j + int(sec * sample_rate), dataTrial.shape[1])
+                for i in range(start_index, end_index):
+                    if 1:  # tutte le mappe
+                        # if i in idx_blinks_about:  # prova, solo le mappe dell'intorno del blink
+                        data_sample = dataTrial[:, i].reshape(len(EEG))
+                        mne.viz.plot_topomap(data=data_sample,
+                                             pos=raw.info,
+                                             ch_type='eeg',
+                                             sensors=False,
+                                             names=None,
+                                             contours=0,
+                                             outlines='head',
+                                             sphere='eeglab',
+                                             # con eeglab i sensori si trovano più esternamente rispetto a None e i sensori sono più distanziati
+                                             image_interp='cubic',
+                                             extrapolate='auto',
+                                             border='mean',
+                                             vlim=(trial_lowest_peak, trial_highest_peak),
+                                             cmap='RdBu_r',
+                                             # PROBLEMA RISOLTO DA SABATINA! (alcune mappe erano tutte rosse, usando RdBu_r funziona bene)
+                                             cnorm=None,
+                                             axes=None,
+                                             show=False,
+                                             onselect=None
+                                             )
 
-                    # LABELING
-                    # 0 - non blink
-                    # 1 - picco blink (e sample immediadamente prima e dopo)
-                    # 2 - transizione da non blink a picco blink, e da picco blink a non blink
-                    if i in idx_blinks_about:  # se i fa parte di un intorno di blink
-                        if i in idx_blinks_near:  # se i è il picco del blink (o sample immediadamente prima o dopo)
-                            label = 1  # da non usare per l'anomaly detection
-                        else:  # transizione
-                            label = 2  # da non usare per l'anomaly detection
-                    else:  # non blink
-                        label = 0
+                        # LABELING
+                        # 0 - non blink
+                        # 1 - picco blink (e sample immediadamente prima e dopo)
+                        # 2 - transizione da non blink a picco blink, e da picco blink a non blink
+                        if i in idx_blinks_about:  # se i fa parte di un intorno di blink
+                            if i in idx_blinks_near:  # se i è il picco del blink (o sample immediadamente prima o dopo)
+                                label = 1  # da non usare per l'anomaly detection
+                            else:  # transizione
+                                label = 2  # da non usare per l'anomaly detection
+                        else:  # non blink
+                            label = 0
 
-                    trialID = str(trial)
-                    subject_without_extension = subject.rsplit(".", 1)[0]
-                    TOPOMAPS_DIR = './topomaps2/' + subject_without_extension + '/' + trialID + '/'
+                        trialID = str(trial)
+                        subject_without_extension = subject.rsplit(".", 1)[0]
+                        TOPOMAPS_DIR = './topomaps_short/' + subject_without_extension + '/' + trialID + '/'
 
-                    # If exist_ok is True, a FileExistsError is not raised if the target directory already exists
-                    os.makedirs(TOPOMAPS_DIR, exist_ok=True)
+                        # If exist_ok is True, a FileExistsError is not raised if the target directory already exists
+                        os.makedirs(TOPOMAPS_DIR, exist_ok=True)
 
-                    fileName = TOPOMAPS_DIR + 'topomapSample_' + str(i) + '_blink_' + str(label) + ".png"
-                    fig = plt.gcf()
-                    fig.canvas.draw()
-                    plt.savefig(fileName,
-                                format="png",
-                                dpi=41,
-                                # 600 per test SOLO
-                                # 41 per avere immagini 32x32
-                                bbox_inches='tight',
-                                pad_inches=0.01  # toglie il bianco attorno
-                                )
+                        fileName = TOPOMAPS_DIR + 'topomapSample_' + str(i) + '_blink_' + str(label) + ".png"
+                        fig = plt.gcf()
+                        fig.canvas.draw()
+                        plt.savefig(fileName,
+                                    format="png",
+                                    dpi=41,
+                                    # 600 per test SOLO
+                                    # 41 per avere immagini 32x32
+                                    bbox_inches='tight',
+                                    pad_inches=0.01  # toglie il bianco attorno
+                                    )
 
-                    plt.close()
+                        plt.close()
 
-                    print(str(i) + ' file ' + fileName + ' saved')
+                        print(str(i) + ' file ' + fileName + ' saved')

@@ -449,14 +449,17 @@ x_test = x_test.astype("float32") / 255.0
 
 # Training
 x_train, x_val, y_train, y_val = train_test_split(x_train, y_train, test_size=0.2)
-early_stopping = EarlyStopping(monitor="val_loss", patience=3, mode="min", verbose=1)
+early_stopping = EarlyStopping(monitor="val_loss", patience=20, mode="min", verbose=1)
 vae = VAE(encoder, decoder)
-vae.compile(optimizer=Adam())
-epochs = 10
+
+# Epsilon=10**-4 seems to work better than the default one
+# Epsilon=0.1 seems to work better than episilon=10**-4
+vae.compile(Adam(epsilon=0.1))
+epochs = 200
 batch_size = 128
 history = vae.fit(x_train, epochs=epochs, batch_size=batch_size, validation_data=(x_val,), callbacks=[early_stopping])
 
-# Some visual information about learning
+# Plot learning curves
 plot_metric(history, "loss")
 plot_metric(history, "reconstruction_loss")
 plot_metric(history, "kl_loss")
