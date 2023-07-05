@@ -17,24 +17,13 @@ from tensorflow import keras
 def load_data(data_path, test_size):
     """
     Loads image data from a specified folder path, preprocesses the images,
-    and splits the data into training and testing sets.
+    and splits the data into training and testing sets. Filters the training set
+    to include only images with a label of 0 (for anomaly detection).
 
-    Args:
-        data_path (str): The path to the folder containing image files.
-        test_size (float, optional): The proportion of the data to be used for testing.
-            Defaults to 0.2.
+    :param data_path: (str) The path to the folder containing image files
+    :param test_size: (float, optional) The proportion of the data to be used for testing
 
-    Returns:
-        tuple: A tuple containing two tuples:
-            - The first tuple contains the training data: (x_train, y_train)
-                - x_train (ndarray): Array of preprocessed training images.
-                - y_train (ndarray): Array of corresponding training labels.
-            - The second tuple contains the testing data: (x_test, y_test)
-                - x_test (ndarray): Array of preprocessed testing images.
-                - y_test (ndarray): Array of corresponding testing labels.
-
-    Raises:
-        ValueError: If no image files are found in the specified folder.
+    :return: training set and test set as tuples
     """
 
     file_names = []
@@ -68,8 +57,16 @@ def load_data(data_path, test_size):
     x = np.array(images)
     y = np.array(labels)
 
-    # Split the data into training and testing sets
-    x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=test_size)
+    # Training set only contains images whose label is 0 for anomaly detection
+    train_indices = np.where(y == 0)[0]
+    x_train = x[train_indices]
+    y_train = y[train_indices]
+
+    # Split the remaining data into testing sets
+    remaining_indices = np.where(y != 0)[0]
+    x_remaining = x[remaining_indices]
+    y_remaining = y[remaining_indices]
+    _, x_test, _, y_test = train_test_split(x_remaining, y_remaining, test_size=test_size)
 
     return (x_train, y_train), (x_test, y_test)
 
@@ -503,7 +500,11 @@ if __name__ == '__main__':
     # Load the data
     (x_train, y_train), (x_test, y_test) = load_data(data_path, test_size=0.2)
 
-    # Print the shapes
+    # Check dataset for anomaly detection task
+    print("y_train contains only label 0:", all(y_train) == 0)
+    print("y_test contains only labels 1 and 2:", all(label in [1, 2] for label in y_test))
+
+    # Print data shapes
     print("x_train shape:", x_train.shape)
     print("y_train shape:", y_train.shape)
     print("x_test shape:", x_test.shape)
@@ -537,7 +538,7 @@ if __name__ == '__main__':
     plot_latent_space(vae, x_train)
     plot_label_clusters(vae, x_train, y_train)
 
-    # Check reconstruction skills
+    # Check reconstruction skills against a random test sample
     image_index = 100
     plt.title(f"Original image {image_index}")
     original_image = x_test[image_index]
