@@ -501,8 +501,11 @@ if __name__ == '__main__':
     (x_train, y_train), (x_test, y_test) = load_data(data_path, test_size=0.2)
 
     # Check dataset for anomaly detection task
-    print("y_train contains only label 0:", all(y_train) == 0)
-    print("y_test contains only labels 1 and 2:", all(label in [1, 2] for label in y_test))
+    y_train_contains_only_label_0 = all(y_train) == 0
+    y_test_contains_only_label_1_and_2 = all(label in [1, 2] for label in y_test)
+    if not y_train_contains_only_label_0 or not y_test_contains_only_label_1_and_2:
+        print("Data was not loaded successfully")
+        exit(1)
 
     # Print data shapes
     print("x_train shape:", x_train.shape)
@@ -522,9 +525,7 @@ if __name__ == '__main__':
     x_train, x_val, y_train, y_val = train_test_split(x_train, y_train, test_size=0.2)
     early_stopping = EarlyStopping(monitor="val_loss", patience=20, mode="min", verbose=1)
     vae = VAE(encoder, decoder)
-
-    # Epsilon=0.1 seems to work better than the other options
-    vae.compile(Adam(epsilon=0.1))
+    vae.compile(Adam(epsilon=0.1))  # Epsilon=0.1 seems to work better than the other options
     epochs = 250
     batch_size = 32
     history = vae.fit(x_train, epochs=epochs, batch_size=batch_size, validation_data=(x_val,),
