@@ -41,7 +41,7 @@ def load_data(data_path, test_size):
 
     # Check if any image files were found
     if len(file_names) == 0:
-        raise ValueError("No image files found in the specified folder.")
+        raise ValueError("No image files found at", data_path)
 
     # Sort the file names and labels to ensure consistent ordering
     file_names, labels = zip(*sorted(zip(file_names, labels)))
@@ -67,6 +67,12 @@ def load_data(data_path, test_size):
     x_remaining = x[remaining_indices]
     y_remaining = y[remaining_indices]
     _, x_test, _, y_test = train_test_split(x_remaining, y_remaining, test_size=test_size)
+
+    # Check dataset for anomaly detection task
+    y_train_only_contains_label_0 = all(y_train) == 0
+    y_test_only_contains_label_1_and_2 = all(label in [1, 2] for label in y_test)
+    if not y_train_only_contains_label_0 or not y_test_only_contains_label_1_and_2:
+        raise ValueError("Data was not loaded successfully")
 
     return (x_train, y_train), (x_test, y_test)
 
@@ -499,13 +505,6 @@ if __name__ == '__main__':
 
     # Load the data
     (x_train, y_train), (x_test, y_test) = load_data(data_path, test_size=0.2)
-
-    # Check dataset for anomaly detection task
-    y_train_only_contains_label_0 = all(y_train) == 0
-    y_test_only_contains_label_1_and_2 = all(label in [1, 2] for label in y_test)
-    if not y_train_only_contains_label_0 or not y_test_only_contains_label_1_and_2:
-        print("Data was not loaded successfully")
-        exit(1)
 
     # Print data shapes
     print("x_train shape:", x_train.shape)
