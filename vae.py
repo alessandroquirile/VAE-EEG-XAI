@@ -501,9 +501,9 @@ if __name__ == '__main__':
     (x_train, y_train), (x_test, y_test) = load_data(data_path, test_size=0.2)
 
     # Check dataset for anomaly detection task
-    y_train_contains_only_label_0 = all(y_train) == 0
-    y_test_contains_only_label_1_and_2 = all(label in [1, 2] for label in y_test)
-    if not y_train_contains_only_label_0 or not y_test_contains_only_label_1_and_2:
+    y_train_only_contains_label_0 = all(y_train) == 0
+    y_test_only_contains_label_1_and_2 = all(label in [1, 2] for label in y_test)
+    if not y_train_only_contains_label_0 or not y_test_only_contains_label_1_and_2:
         print("Data was not loaded successfully")
         exit(1)
 
