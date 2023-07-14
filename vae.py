@@ -234,8 +234,8 @@ class VAE(keras.Model):
         self.kl_loss_tracker = keras.metrics.Mean(name="kl_loss")
 
     def call(self, inputs, training=None, mask=None):
-        _, _, z = encoder(inputs)
-        outputs = decoder(z)
+        _, _, z = self.encoder(inputs)
+        outputs = self.decoder(z)
         return outputs
 
     @property
