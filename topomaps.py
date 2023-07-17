@@ -1,8 +1,10 @@
+import math as m
+
 import matplotlib.pyplot as plt
 from mne.preprocessing import find_eog_events
+from scipy.interpolate import griddata
 
 from eeg_constants import *
-from savers import save_plot, save_events
 from utils import *
 
 
@@ -92,6 +94,140 @@ def _draw_outlines_new(ax, outlines):
     return outlines_
 
 
+def getChannellInfoForSample(channelNames, channelValues, onlyValues=False):
+    i = 0
+    channelValuesforCurrentSample = []
+    for ch in channelNames:
+        chValue = channelValues[i]
+        if onlyValues:
+            channelValuesforCurrentSample.append(chValue)
+        else:
+            channelValuesforCurrentSample.append((ch, chValue))
+        i += 1
+
+    return channelValuesforCurrentSample
+
+
+def convert3DTo2D(pos_3d):
+    pos_2d = []
+    for e in pos_3d:
+        pos_2d.append(azim_proj(e))
+
+    return (pos_2d)
+
+
+def cart2sph(x, y, z):
+    """
+    Transform Cartesian coordinates to spherical
+    :param x: X coordinate
+    :param y: Y coordinate
+    :param z: Z coordinate
+    :return: radius, elevation, azimuth
+    """
+    x2_y2 = x ** 2 + y ** 2
+    r = m.sqrt(x2_y2 + z ** 2)  # r     tant^(-1)(y/x)
+    elev = m.atan2(z, m.sqrt(x2_y2))  # Elevation
+    az = m.atan2(y, x)  # Azimuth
+
+    return r, elev, az
+
+
+def azim_proj(pos):
+    """
+    Computes the Azimuthal Equidistant Projection of input point in 3D Cartesian Coordinates.
+    Imagine a plane being placed against (tangent to) a globe. If
+    a light source inside the globe projects the graticule onto
+    the plane the result would be a planar, or azimuthal, map
+    projection.
+
+    :param pos: position in 3D Cartesian coordinates    [x, y, z]
+    :return: projected coordinates using Azimuthal Equidistant Projection
+    """
+    [r, elev, az] = cart2sph(pos[0], pos[1], pos[2])
+
+    return pol2cart(az, m.pi / 2 - elev)
+
+
+def pol2cart(theta, rho):
+    """
+    Transform polar coordinates to Cartesian
+    :param theta: angle value
+    :param rho: radius value
+    :return: X, Y
+    """
+    # print ('----------')
+    # print (rho * m.cos(theta))
+    # print (rho * m.sin(theta))
+    return rho * m.cos(theta), rho * m.sin(theta)
+
+
+def get3DCoordinates(MontageChannelLocation, EEGChannels):
+    MontageChannelLocation = MontageChannelLocation[-EEGChannels:]
+    location = []
+    for i in range(0, 32):
+        v = MontageChannelLocation[i].values()
+        values = list(v)
+        a = (values[1]) * 1000
+        location.append(a)
+    MontageLocation = np.array(location)
+    # MontageLocation=trunc(MontageLocation,decs=3)
+    MontageLocation = np.round(MontageLocation, 1)
+    MontageLocation = MontageLocation.tolist()
+    return MontageLocation
+
+
+def createTopographicMapFromChannelValues(channelValues, interpolationMethod="cubic", verbose=False):
+    channelNames = ['Fp1', 'AF3', 'F7', 'F3', 'FC1', 'FC5', 'T7', 'C3', 'CP1', 'CP5', 'P7',
+                    'P3', 'Pz', 'PO3', 'O1', 'Oz', 'O2', 'PO4', 'P4', 'P8', 'CP6', 'CP2',
+                    'C4', 'T8', 'FC6', 'FC2', 'F4', 'F8', 'AF4', 'Fp2', 'Fz', 'Cz']
+    listOfChannelValues = getChannellInfoForSample(channelNames, channelValues, onlyValues=True)
+
+    rawDatasetForMontageLocation = rawDatasetReReferenced.copy()
+    MontageChannelLocation = rawDatasetForMontageLocation.info['dig']
+    lengthOfTopographicMap = 32
+    emptyTopographicMap = np.array(np.zeros([lengthOfTopographicMap, lengthOfTopographicMap]))
+
+    if verbose:
+        plt.imshow(emptyTopographicMap)
+        plt.show()
+
+    NumberOfEEGChannel = 32
+    pos2D = np.array(convert3DTo2D(get3DCoordinates(MontageChannelLocation, NumberOfEEGChannel)))
+
+    grid_x, grid_y = np.mgrid[
+                     min(pos2D[:, 0]):max(pos2D[:, 0]):lengthOfTopographicMap * 1j,
+                     min(pos2D[:, 1]):max(pos2D[:, 1]):lengthOfTopographicMap * 1j
+                     ]
+
+    # Generate edgeless images
+
+    min_x, min_y = np.min(pos2D, axis=0)
+    max_x, max_y = np.max(pos2D, axis=0)
+    locations = np.append(pos2D, np.array([[min_x, min_y], [min_x, max_y], [max_x, min_y], [max_x, max_y]]), axis=0)
+
+    interpolatedTopographicMap = griddata(pos2D, channelValues, (grid_x, grid_y), method=interpolationMethod,
+                                          fill_value=0)
+
+    CordinateYellowRegion = np.argwhere(interpolatedTopographicMap == 0.)
+
+    if verbose:
+        i = 0
+        for chVal in channelValues:
+            for x in range(32):
+                for y in range(32):
+                    print("Trying to find value {} in pixel ({},{}-{})".format(chVal, x, y,
+                                                                               interpolatedTopographicMap[x][y]))
+                    if (chVal == interpolatedTopographicMap[x][y]):
+                        print("Value found at pixel ({}{}) for channel: {}".format(x, y, channelNames[i]))
+            i = i + 1
+
+    if (verbose):
+        plt.imshow(interpolatedTopographicMap)
+        plt.show()
+
+    return interpolatedTopographicMap, CordinateYellowRegion
+
+
 if __name__ == '__main__':
     path = 'data_original/'
     l_freq = 0.1
@@ -109,7 +245,8 @@ if __name__ == '__main__':
     }
 
     subjects = get_subjects(path)
-    subjects = list(magic_numbers.keys())  # Only the subjects in the dictionary
+    # subjects = list(magic_numbers.keys())  # Only the subjects in the dictionary
+    subjects = ["s01.bdf"]
     for subject in subjects:
         raw = read_bdf(path, subject)
 
@@ -129,7 +266,7 @@ if __name__ == '__main__':
         for trial, index in enumerate(indices, start=1):
             # Crop the raw signal based on the 60-seconds-trial-length at given index
             cropped_raw_fp1_fp2 = crop(raw, index, FP1_FP2)
-            save_plot('plots', 1, 10, cropped_raw_fp1_fp2, subject, trial)
+            """save_plot('plots', 1, 10, cropped_raw_fp1_fp2, subject, trial)"""
 
             data = cropped_raw_fp1_fp2.get_data()
             sample_rate = get_sample_rate(cropped_raw_fp1_fp2)
@@ -144,10 +281,10 @@ if __name__ == '__main__':
             events = find_eog_events(cropped_raw_fp1_fp2, ch_name=FP1_FP2, thresh=thresh, l_freq=1, h_freq=10)
 
             # Let's save some useful information on disk
-            save_events('events', subject, trial, events, index, sample_rate,
+            """save_events('events', subject, trial, events, index, sample_rate,
                         subject_lowest_peak, subject_highest_peak, magic_number,
                         trial_lowest_peak, trial_highest_peak,
-                        thresh)
+                        thresh)"""
 
             ##########SALVATORE##########
             cropped_raw_eeg = crop(raw, index, EEG)
@@ -187,39 +324,27 @@ if __name__ == '__main__':
                 idx_blinks_near.append(i + 1)  # sample successivo
 
             # plot topomaps
-            # Monkey patches
+            """# Monkey patches
             mne.viz.topomap._make_head_outlines = _make_head_outlines_new
-            mne.viz.topomap._draw_outlines = _draw_outlines_new
+            mne.viz.topomap._draw_outlines = _draw_outlines_new"""
 
             sec = 0.5
+            rawDatasetReReferenced = rawEEGall_trialTest.copy().set_eeg_reference(ref_channels='average')
+            transposedDataset = np.transpose(rawDatasetReReferenced._data)
+
+            trial_topomaps = []  # for given subject and given trial
+            trial_labels = []
             for j in idx_blinks:
-                # Ensure that  the indices are within the bounds of dataTrial
                 start_index = max(j - int(sec * sample_rate), 0)
                 end_index = min(j + int(sec * sample_rate), dataTrial.shape[1])
                 for i in range(start_index, end_index):
-                    data_sample = dataTrial[:, i].reshape(len(EEG))
-                    mne.viz.plot_topomap(data=data_sample,
-                                         pos=raw.info,
-                                         ch_type='eeg',
-                                         sensors=False,
-                                         names=None,
-                                         contours=0,
-                                         outlines='head',
-                                         sphere='eeglab',
-                                         # con eeglab i sensori si trovano più esternamente rispetto a None e i sensori sono più distanziati
-                                         image_interp='cubic',
-                                         extrapolate='auto',
-                                         border='mean',
-                                         vlim=(trial_lowest_peak, trial_highest_peak),
-                                         cmap='RdBu_r',
-                                         # PROBLEMA RISOLTO DA SABATINA! (alcune mappe erano tutte rosse, usando RdBu_r funziona bene)
-                                         cnorm=None,
-                                         axes=None,
-                                         show=False,
-                                         onselect=None
-                                         )
+                    channelValuesForCurrentSample = list(transposedDataset[i, :])
+                    interpolatedTopographicMap, CordinateYellowRegion = createTopographicMapFromChannelValues(
+                        channelValuesForCurrentSample, interpolationMethod="cubic", verbose=False)
+                    trial_topomaps.append(interpolatedTopographicMap)
 
-                    # LABELING
+                    ### LABELING
+                    # etichetta i blink in questo modo: 0, 1, 2
                     # 0 - non blink
                     # 1 - picco blink (e sample immediadamente prima e dopo)
                     # 2 - transizione da non blink a picco blink, e da picco blink a non blink
@@ -231,25 +356,26 @@ if __name__ == '__main__':
                     else:  # non blink
                         label = 0
 
-                    trialID = str(trial)
-                    subject_without_extension = subject.rsplit(".", 1)[0]
-                    TOPOMAPS_DIR = './topomaps_short/' + subject_without_extension + '/' + trialID + '/'
+                    trial_labels.append(label)
 
-                    # If exist_ok is True, a FileExistsError is not raised if the target directory already exists
-                    os.makedirs(TOPOMAPS_DIR, exist_ok=True)
+            if len(trial_topomaps) != 0:
+                trial_topomaps = np.array(trial_topomaps)
+                trial_labels = np.array(trial_labels)
 
-                    fileName = TOPOMAPS_DIR + 'topomapSample_' + str(i) + '_blink_' + str(label) + ".png"
-                    fig = plt.gcf()
-                    fig.canvas.draw()
-                    plt.savefig(fileName,
-                                format="png",
-                                dpi=41,
-                                # 600 per test SOLO
-                                # 41 per avere immagini 32x32
-                                bbox_inches='tight',
-                                pad_inches=0.01  # toglie il bianco attorno
-                                )
+                topomap_folder = 'topomaps'
+                labels_folder = 'labels'
 
-                    plt.close()
+                os.makedirs(topomap_folder, exist_ok=True)
+                os.makedirs(labels_folder, exist_ok=True)
 
-                    print(str(i) + ' file ' + fileName + ' saved')
+                subject_without_extension = subject.rsplit(".", 1)[0]
+                file_name = f"{subject_without_extension}_trial{str(trial).zfill(2)}.npy"
+                print("Saving", file_name)
+                np.save(os.path.join(topomap_folder, file_name), trial_topomaps)
+                np.save(os.path.join(labels_folder, file_name), trial_labels)
+
+                # Check con il notebook di Sabatina
+                """if trial == 40:
+                    plt.imshow(topomaps[0], cmap='gray')
+                    plt.show()
+                    print(topomaps[0].shape)"""
