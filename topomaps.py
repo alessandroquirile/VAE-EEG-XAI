@@ -211,8 +211,6 @@ if __name__ == '__main__':
             blink_pre = int(blinkTime_pre * sample_rate)
             blink_post = int(blinkTime_post * sample_rate)
 
-            # dataTrial = cropped_raw_eeg_all.get_data()
-            # dataTrial = raw.copy().pick_channels(EEG).get_data()
             rawDataset = raw.copy()
             rawEEGall = rawDataset.pick_channels(EEG, verbose=False)
             min1 = sample_rate * 60
@@ -237,11 +235,6 @@ if __name__ == '__main__':
                 idx_blinks_near.append(i - 1)  # sample precedente
                 idx_blinks_near.append(i)  # sample del picco
                 idx_blinks_near.append(i + 1)  # sample successivo
-
-            # plot topomaps
-            """# Monkey patches
-            mne.viz.topomap._make_head_outlines = _make_head_outlines_new
-            mne.viz.topomap._draw_outlines = _draw_outlines_new"""
 
             sec = 0.5
             rawDatasetReReferenced = rawEEGall_trialTest.copy().set_eeg_reference(ref_channels='average', verbose=False)
@@ -299,7 +292,7 @@ if __name__ == '__main__':
     correct_labels()
 
     # Check visuale, crea i png delle topomap specificate
-    subject = "s01"
+    """subject = "s01"
     trial = "12"
     file_name = subject + "_trial" + str(trial) + ".npy"
     topomaps = np.load(f"topomaps/{file_name}")
@@ -313,4 +306,4 @@ if __name__ == '__main__':
         output_file = os.path.join(output_folder,
                                    f"{os.path.splitext(os.path.basename(file_name))[0]}_topomap{i + 1}.png")
         plt.savefig(output_file)
-        plt.clf()
+        plt.clf()"""
