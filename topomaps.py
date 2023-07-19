@@ -299,7 +299,9 @@ if __name__ == '__main__':
     correct_labels()
 
     # Check visuale, crea i png delle topomap specificate
-    """file_name = "s01_trial30.npy"
+    subject = "s01"
+    trial = "12"
+    file_name = subject + "_trial" + str(trial) + ".npy"
     topomaps = np.load(f"topomaps/{file_name}")
     labels = np.load(f"labels/{file_name}")
     output_folder = "images"
@@ -311,4 +313,4 @@ if __name__ == '__main__':
         output_file = os.path.join(output_folder,
                                    f"{os.path.splitext(os.path.basename(file_name))[0]}_topomap{i + 1}.png")
         plt.savefig(output_file)
-        plt.clf()"""
+        plt.clf()

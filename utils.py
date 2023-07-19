@@ -109,11 +109,8 @@ def correct_labels():
     print("\nCorrecting labels...")
 
     # Correcting s01
-    to_be_marked_as_no_blinks = ["labels/s01_trial06.npy", "labels/s01_trial12.npy"]
-    for file_path in to_be_marked_as_no_blinks:
-        mark_as_no_blinks(file_path)
-    file_path = "labels/s01_trial30.npy"
-    mark_as_transition(file_path, 79, 90)
+    mark_as_no_blinks("labels/s01_trial06.npy")
+    mark_as_transition("labels/s01_trial30.npy", 79, 90)
 
     # Correcting s02
 
