@@ -153,26 +153,4 @@ if __name__ == '__main__':
                 np.save(os.path.join(topomap_folder, file_name), trial_topomaps)
                 np.save(os.path.join(labels_folder, file_name), trial_labels)
 
-                # Check con il notebook di Sabatina
-                """if trial == 40:
-                    plt.imshow(topomaps[0], cmap='gray')
-                    plt.show()
-                    print(topomaps[0].shape)"""
-
     correct_labels()
-
-    # Check visuale, crea i png delle topomap specificate
-    subject = "s02"
-    trial = "01"
-    file_name = subject + "_trial" + str(trial) + ".npy"
-    topomaps = np.load(f"topomaps/{file_name}")
-    labels = np.load(f"labels/{file_name}")
-    output_folder = os.path.join("images", subject, trial)
-    os.makedirs(output_folder, exist_ok=True)
-    file_name_without_extension = os.path.splitext(file_name)[0]
-    for i in tqdm(range(topomaps.shape[0]), desc=f"Saving {file_name_without_extension} topomaps", unit="topomap"):
-        plt.imshow(topomaps[i], cmap="gray")
-        plt.title(f"{file_name}[{i}] label = {labels[i]}")
-        output_file = os.path.join(output_folder, f"{file_name_without_extension}_topomap{i + 1}.png")
-        plt.savefig(output_file)
-        plt.clf()

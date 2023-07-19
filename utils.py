@@ -113,6 +113,7 @@ def correct_labels():
     mark_as_transition("labels/s01_trial30.npy", 79, 90)
 
     # Correcting s02
+    # TODO
 
     print("Labels corrected")
 
