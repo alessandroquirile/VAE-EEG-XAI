@@ -14,6 +14,43 @@ from sklearn.model_selection import train_test_split
 from tensorflow import keras
 
 
+def load_data_new(topomap_folder: str, labels_folder: str) -> list:
+    """
+    Load and pair topomap data and corresponding label data from separate folders
+    :param topomap_folder: (str) The path to the folder containing topomaps .npy files
+    :param labels_folder: (str) The path to the folder containing labels .npy files
+    :return: (list) A list of tuples, where each tuple contains a topomap ndarray and its corresponding label 1D-array.
+
+    Note:
+        The function assumes that the filenames of the topomaps and labels are in the same order.
+        It also assumes that there is a one-to-one correspondence between the topomap files and the label files.
+        If there are inconsistencies between the shapes of the topomap and label files, it will print a warning message.
+
+    Example:
+        topomap_folder = "topomaps"
+        labels_folder = "labels"
+        dataset = load_data(topomap_folder, labels_folder)
+    """
+    topomap_files = os.listdir(topomap_folder)
+    labels_files = os.listdir(labels_folder)
+    dataset = []
+
+    for topomap_file, label_file in zip(topomap_files, labels_files):
+        if topomap_file.endswith(".npy") and label_file.endswith(".npy"):
+            topomap_path = os.path.join(topomap_folder, topomap_file)
+            label_path = os.path.join(labels_folder, label_file)
+
+            topomap_data = np.load(topomap_path)
+            label_data = np.load(label_path)
+
+            if topomap_data.shape[0] == label_data.shape[0]:
+                dataset.append((topomap_data, label_data))
+            else:
+                print(f"Warning: Inconsistent shapes for {topomap_file} and {label_file}.")
+
+    return dataset
+
+
 def load_data(data_path, test_size):
     """
     Loads image data from a specified folder path, preprocesses the images,

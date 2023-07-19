@@ -6,6 +6,7 @@ from mne.filter import filter_data
 from mne.io import read_raw_bdf
 
 from eeg_constants import FP1_FP2, EOG, MISC, STIM_CHANNEL
+from label_enum import *
 
 
 def read_bdf(path: str, subject: str) -> mne.io.Raw:
@@ -55,7 +56,7 @@ def calculate_thresh(filtered_data, magic_number):
 
 
 def crop(raw, sample_index, channels):
-    raw_copy = raw.copy().pick_channels(channels)
+    raw_copy = raw.copy().pick_channels(channels, verbose=False)
     cropped_raw = _crop(raw_copy, sample_index)
     return cropped_raw
 
@@ -80,11 +81,11 @@ def _get_extrema(raw, indices, l_freq, h_freq):
     """lowest_peak_trial = 0
     highest_peak_trial = 0"""
     for trial, sample_index in enumerate(indices, start=1):
-        raw_copy = raw.copy().pick_channels(FP1_FP2)
+        raw_copy = raw.copy().pick_channels(FP1_FP2, verbose=False)
         cropped_raw = _crop(raw_copy, sample_index)
         data = raw_copy.get_data()
         sample_rate = get_sample_rate(raw_copy)
-        filtered_data = filter_data(data, sample_rate, l_freq, h_freq)
+        filtered_data = filter_data(data, sample_rate, l_freq, h_freq, verbose=False)
 
         if np.min(filtered_data) < lowest_peak:
             lowest_peak = np.min(filtered_data)
@@ -102,3 +103,43 @@ def _get_number_of_samples_in_1_minute(sample_rate: int):
     seconds_in_1_minute = 60
     n_samples_in_1_minute = sample_rate * seconds_in_1_minute
     return n_samples_in_1_minute
+
+
+def correct_labels():
+    print("\nCorrecting labels...")
+
+    # Correcting s01
+    to_be_marked_as_no_blinks = ["labels/s01_trial06.npy", "labels/s01_trial12.npy"]
+    for file_path in to_be_marked_as_no_blinks:
+        mark_as_no_blinks(file_path)
+    file_path = "labels/s01_trial30.npy"
+    mark_as_transition(file_path, 79, 90)
+
+    # Correcting s02
+
+
+def mark_as_no_blinks(file_path: str):
+    """
+    Correct false positive blinks
+    :param file_path: (str) Path to the file
+    :return: None
+    """
+    labels = np.load(file_path)
+    # print("Before", labels)  # dbg
+    labels.fill(NO_BLINK)
+    np.save(file_path, labels)
+    # labels = np.load(file_path)  # dbg
+    # print("After", labels)  # dbg
+
+
+def mark_as_transition(file_path, start_index, end_index):
+    """
+    Correct labels marking transitions
+    :param file_path:  (str) Path to the file
+    :param start_index: Start index to be marked as transition
+    :param end_index: End index to be marked as transition
+    :return: None
+    """
+    labels = np.load(file_path)
+    labels[start_index:end_index] = TRANSITION  # [start_index;end_index)
+    np.save(file_path, labels)

@@ -8,92 +8,6 @@ from eeg_constants import *
 from utils import *
 
 
-# monkey patching, per non creare naso e orecchie
-def _make_head_outlines_new(sphere, pos, outlines, clip_origin):
-    """Check or create outlines for topoplot."""
-    assert isinstance(sphere, np.ndarray)
-    x, y, _, radius = sphere
-    del sphere
-
-    if outlines in ("head", None):
-        ll = np.linspace(0, 2 * np.pi, 101)
-        head_x = np.cos(ll) * radius + x
-        head_y = np.sin(ll) * radius + y
-        dx = np.exp(np.arccos(np.deg2rad(12)) * 1j)
-        dx, dy = dx.real, dx.imag
-        # nose_x = np.array([-dx, 0, dx]) * radius + x
-        # nose_y = np.array([dy, 1.15, dy]) * radius + y
-        # ear_x = np.array(
-        #     [0.497, 0.510, 0.518, 0.5299, 0.5419, 0.54, 0.547, 0.532, 0.510, 0.489]
-        # ) * (radius * 2)
-        # ear_y = (
-        #     np.array(
-        #         [
-        #             0.0555,
-        #             0.0775,
-        #             0.0783,
-        #             0.0746,
-        #             0.0555,
-        #             -0.0055,
-        #             -0.0932,
-        #             -0.1313,
-        #             -0.1384,
-        #             -0.1199,
-        #         ]
-        #     )
-        #     * (radius * 2)
-        #     + y
-        # )
-
-        if outlines is not None:
-            # Define the outline of the head, ears and nose
-            outlines_dict = dict(
-                head=(head_x, head_y),
-                # nose=(nose_x, nose_y),
-                # ear_left=(-ear_x + x, ear_y),
-                # ear_right=(ear_x + x, ear_y),
-            )
-        else:
-            outlines_dict = dict()
-
-        # Make the figure encompass slightly more than all points
-        # We probably want to ensure it always contains our most
-        # extremely positioned channels, so we do:
-        mask_scale = max(1.0, np.linalg.norm(pos, axis=1).max() * 1.01 / radius)
-        outlines_dict["mask_pos"] = (mask_scale * head_x, mask_scale * head_y)
-        clip_radius = radius * mask_scale
-        outlines_dict["clip_radius"] = (clip_radius,) * 2
-        outlines_dict["clip_origin"] = clip_origin
-        outlines = outlines_dict
-
-    elif isinstance(outlines, dict):
-        if "mask_pos" not in outlines:
-            raise ValueError("You must specify the coordinates of the image " "mask.")
-    else:
-        raise ValueError("Invalid value for `outlines`.")
-
-    return outlines
-
-
-# monkey patching, per non far disegnare l'outline
-def _draw_outlines_new(ax, outlines):
-    """Draw the outlines for a topomap."""
-    from matplotlib import rcParams
-
-    outlines_ = {k: v for k, v in outlines.items() if k not in ["patch"]}
-    for key, (x_coord, y_coord) in outlines_.items():
-        if "mask" in key or key in ("clip_radius", "clip_origin"):
-            continue
-        ax.plot(
-            x_coord,
-            y_coord,
-            color=rcParams["axes.edgecolor"],
-            linewidth=0,  # 1, cambiato
-            clip_on=False,
-        )
-    return outlines_
-
-
 def getChannellInfoForSample(channelNames, channelValues, onlyValues=False):
     i = 0
     channelValuesforCurrentSample = []
@@ -251,11 +165,11 @@ if __name__ == '__main__':
         raw = read_bdf(path, subject)
 
         montage = mne.channels.make_standard_montage('biosemi32')
-        raw.set_montage(montage)
+        raw.set_montage(montage, verbose=False)
 
         # Filtering and then resampling avoids aliasing
-        raw.filter(l_freq=l_freq, h_freq=h_freq, fir_design='firwin')
-        raw.resample(sfreq=128)  # così si avranno 128 MAPPE PER SECONDO
+        raw.filter(l_freq=l_freq, h_freq=h_freq, verbose=False)
+        raw.resample(sfreq=128, verbose=False)  # così si avranno 128 MAPPE PER SECONDO
 
         # Computing the extrema for each subject (instead of for each trial) handles the scenario in which
         # a subject does not blink at all watching a trial:
@@ -270,7 +184,7 @@ if __name__ == '__main__':
 
             data = cropped_raw_fp1_fp2.get_data()
             sample_rate = get_sample_rate(cropped_raw_fp1_fp2)
-            filtered_data = filter_data(data, sample_rate, l_freq=1, h_freq=10)
+            filtered_data = filter_data(data, sample_rate, l_freq=1, h_freq=10, verbose=False)
             trial_lowest_peak = np.min(filtered_data)
             trial_highest_peak = np.max(filtered_data)
 
@@ -278,7 +192,8 @@ if __name__ == '__main__':
             thresh = calculate_thresh(filtered_data, magic_number)
 
             # We shall focus on Fp1 and Fp2 only since they are the closest electrodes wrt the eyes
-            events = find_eog_events(cropped_raw_fp1_fp2, ch_name=FP1_FP2, thresh=thresh, l_freq=1, h_freq=10)
+            events = find_eog_events(cropped_raw_fp1_fp2, ch_name=FP1_FP2, thresh=thresh, l_freq=1, h_freq=10,
+                                     verbose=False)
 
             # Let's save some useful information on disk
             """save_events('events', subject, trial, events, index, sample_rate,
@@ -299,7 +214,7 @@ if __name__ == '__main__':
             # dataTrial = cropped_raw_eeg_all.get_data()
             # dataTrial = raw.copy().pick_channels(EEG).get_data()
             rawDataset = raw.copy()
-            rawEEGall = rawDataset.pick_channels(EEG)
+            rawEEGall = rawDataset.pick_channels(EEG, verbose=False)
             min1 = sample_rate * 60
             rawEEGall_trialTest = rawEEGall.crop(tmin=index / sample_rate,
                                                  tmax=(index + min1) / sample_rate)
@@ -329,8 +244,8 @@ if __name__ == '__main__':
             mne.viz.topomap._draw_outlines = _draw_outlines_new"""
 
             sec = 0.5
-            rawDatasetReReferenced = rawEEGall_trialTest.copy().set_eeg_reference(ref_channels='average')
-            transposedDataset = np.transpose(rawDatasetReReferenced._data)
+            rawDatasetReReferenced = rawEEGall_trialTest.copy().set_eeg_reference(ref_channels='average', verbose=False)
+            transposedDataset = np.transpose(rawDatasetReReferenced.get_data())
 
             trial_topomaps = []  # for given subject and given trial
             trial_labels = []
@@ -350,11 +265,11 @@ if __name__ == '__main__':
                     # 2 - transizione da non blink a picco blink, e da picco blink a non blink
                     if i in idx_blinks_about:  # se i fa parte di un intorno di blink
                         if i in idx_blinks_near:  # se i è il picco del blink (o sample immediadamente prima o dopo)
-                            label = 1  # da non usare per l'anomaly detection
+                            label = BLINK  # da non usare per l'anomaly detection
                         else:  # transizione
-                            label = 2  # da non usare per l'anomaly detection
+                            label = TRANSITION  # da non usare per l'anomaly detection
                     else:  # non blink
-                        label = 0
+                        label = NO_BLINK
 
                     trial_labels.append(label)
 
@@ -369,7 +284,8 @@ if __name__ == '__main__':
                 os.makedirs(labels_folder, exist_ok=True)
 
                 subject_without_extension = subject.rsplit(".", 1)[0]
-                file_name = f"{subject_without_extension}_trial{str(trial).zfill(2)}.npy"
+                trial_with_leading_zero = str(trial).zfill(2)
+                file_name = f"{subject_without_extension}_trial{trial_with_leading_zero}.npy"
                 print("Saving", file_name)
                 np.save(os.path.join(topomap_folder, file_name), trial_topomaps)
                 np.save(os.path.join(labels_folder, file_name), trial_labels)
@@ -379,3 +295,20 @@ if __name__ == '__main__':
                     plt.imshow(topomaps[0], cmap='gray')
                     plt.show()
                     print(topomaps[0].shape)"""
+
+    correct_labels()
+
+    # Check visuale, crea i png delle topomap specificate
+    """file_name = "s01_trial30.npy"
+    topomaps = np.load(f"topomaps/{file_name}")
+    labels = np.load(f"labels/{file_name}")
+    output_folder = "images"
+    os.makedirs(output_folder, exist_ok=True)
+    print(f"\nSaving images into {output_folder} folder...")
+    for i in range(topomaps.shape[0]):
+        plt.imshow(topomaps[i], cmap="gray")
+        plt.title(f"{file_name}[{i}] label = {labels[i]}")
+        output_file = os.path.join(output_folder,
+                                   f"{os.path.splitext(os.path.basename(file_name))[0]}_topomap{i + 1}.png")
+        plt.savefig(output_file)
+        plt.clf()"""
