@@ -1,8 +1,10 @@
 import math as m
+import warnings
 
 import matplotlib.pyplot as plt
 from mne.preprocessing import find_eog_events
 from scipy.interpolate import griddata
+from tqdm import tqdm
 
 from eeg_constants import *
 from utils import *
@@ -160,8 +162,8 @@ if __name__ == '__main__':
 
     subjects = get_subjects(path)
     # subjects = list(magic_numbers.keys())  # Only the subjects in the dictionary
-    subjects = ["s01.bdf"]
-    for subject in subjects:
+    subjects = ["s02.bdf"]
+    for subject in tqdm(subjects, desc="Processing subjects", unit="subject"):
         raw = read_bdf(path, subject)
 
         montage = mne.channels.make_standard_montage('biosemi32')
@@ -169,7 +171,9 @@ if __name__ == '__main__':
 
         # Filtering and then resampling avoids aliasing
         raw.filter(l_freq=l_freq, h_freq=h_freq, verbose=False)
-        raw.resample(sfreq=128, verbose=False)  # così si avranno 128 MAPPE PER SECONDO
+        warnings.filterwarnings("ignore", message="Resampling of the stim channels caused event information to become unreliable. Consider finding events on the original data and passing the event matrix as a parameter.")
+
+        raw.resample(sfreq=128, verbose=False)
 
         # Computing the extrema for each subject (instead of for each trial) handles the scenario in which
         # a subject does not blink at all watching a trial:
@@ -177,7 +181,7 @@ if __name__ == '__main__':
         subject_lowest_peak, subject_highest_peak = get_extrema(raw, l_freq, h_freq)
 
         indices = get_indices_where_video_start(raw)
-        for trial, index in enumerate(indices, start=1):
+        for trial, index in tqdm(enumerate(indices, start=1), desc=f"Processing {subject} trials", total=len(indices), unit="trials"):
             # Crop the raw signal based on the 60-seconds-trial-length at given index
             cropped_raw_fp1_fp2 = crop(raw, index, FP1_FP2)
             """save_plot('plots', 1, 10, cropped_raw_fp1_fp2, subject, trial)"""
@@ -279,7 +283,7 @@ if __name__ == '__main__':
                 subject_without_extension = subject.rsplit(".", 1)[0]
                 trial_with_leading_zero = str(trial).zfill(2)
                 file_name = f"{subject_without_extension}_trial{trial_with_leading_zero}.npy"
-                print("Saving", file_name)
+                # print("Saving", file_name)
                 np.save(os.path.join(topomap_folder, file_name), trial_topomaps)
                 np.save(os.path.join(labels_folder, file_name), trial_labels)
 
@@ -292,18 +296,18 @@ if __name__ == '__main__':
     correct_labels()
 
     # Check visuale, crea i png delle topomap specificate
-    """subject = "s01"
-    trial = "12"
+    subject = "s02"
+    trial = "01"
     file_name = subject + "_trial" + str(trial) + ".npy"
     topomaps = np.load(f"topomaps/{file_name}")
     labels = np.load(f"labels/{file_name}")
     output_folder = "images"
     os.makedirs(output_folder, exist_ok=True)
-    print(f"\nSaving images into {output_folder} folder...")
-    for i in range(topomaps.shape[0]):
+    file_name_without_extension = os.path.splitext(file_name)[0]
+    for i in tqdm(range(topomaps.shape[0]), desc=f"Saving {file_name_without_extension} topomaps", unit="topomap"):
         plt.imshow(topomaps[i], cmap="gray")
         plt.title(f"{file_name}[{i}] label = {labels[i]}")
         output_file = os.path.join(output_folder,
                                    f"{os.path.splitext(os.path.basename(file_name))[0]}_topomap{i + 1}.png")
         plt.savefig(output_file)
-        plt.clf()"""
+        plt.clf()

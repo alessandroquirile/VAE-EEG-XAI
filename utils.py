@@ -114,7 +114,7 @@ def correct_labels():
 
     # Correcting s02
 
-
+    print("Labels corrected")
 def mark_as_no_blinks(file_path: str):
     """
     Correct false positive blinks
