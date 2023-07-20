@@ -113,7 +113,12 @@ def correct_labels():
     mark_as_transition("labels/s01_trial30.npy", 79, 90)
 
     # Correcting s02
-    # TODO
+    mark_as_transition("labels/s01_trial07.npy", 591, 619)
+    mark_as_transition("labels/s01_trial07.npy", 719, 742)
+    mark_as_transition("labels/s01_trial07.npy", 1743, 1745)
+    mark_as_transition("labels/s01_trial07.npy", 1871, 1878)
+    mark_as_transition("labels/s01_trial40.npy", 335, 340)
+    mark_as_transition("labels/s01_trial40.npy", 463, 480)
 
     print("Labels corrected")
 
@@ -141,5 +146,5 @@ def mark_as_transition(file_path, start_index, end_index):
     :return: None
     """
     labels = np.load(file_path)
-    labels[start_index:end_index] = TRANSITION  # [start_index;end_index)
+    labels[start_index:end_index] = TRANSITION  # [start_index; end_index)
     np.save(file_path, labels)
