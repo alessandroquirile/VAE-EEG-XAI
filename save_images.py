@@ -7,7 +7,8 @@ from tqdm import tqdm
 if __name__ == '__main__':
     # Check visuale, crea i png delle topomap specificate
     subject = "s02"
-    trial = "01"
+    trial = "06"  # alcuni soggetti potrebbero non avere un npy associato al trial, es topomaps/s01_trial01.npy non esiste
+
     file_name = subject + "_trial" + str(trial) + ".npy"
     topomaps = np.load(f"topomaps/{file_name}")
     labels = np.load(f"labels/{file_name}")
