@@ -8,7 +8,7 @@ from indian_topomaps import *
 from utils import *
 
 if __name__ == '__main__':
-    path = 'data_original/'
+    path = '/Users/alessandroquirile/PycharmProjects/VAE-EEG-XAI/data_original/'
     l_freq = 0.1
     h_freq = 45
 
@@ -24,8 +24,8 @@ if __name__ == '__main__':
     }
 
     subjects = get_subjects(path)
-    # subjects = list(magic_numbers.keys())  # Only the subjects in the dictionary
-    subjects = ["s02.bdf"]
+    subjects = list(magic_numbers.keys())  # Only the subjects in the dictionary
+    # subjects = ["s02.bdf"]
     for subject in tqdm(subjects, desc="Processing subjects", unit="subject"):
         raw = read_bdf(path, subject)
 
