@@ -109,32 +109,39 @@ def correct_labels():
     print("\nCorrecting labels...")
 
     # Correcting s01
-    mark_as_no_blinks("labels/s01_trial06.npy")
-    mark_as_transition("labels/s01_trial30.npy", 79, 90)
+    subject = "s01"
+    mark_as_no_blinks(f"labels/{subject}_trial06.npy")
+    mark_as_transition(f"labels/{subject}_trial30.npy", 79, 90)
 
     # Correcting s02
-    mark_as_transition("labels/s02_trial07.npy", 591, 619)
-    mark_as_transition("labels/s02_trial07.npy", 719, 742)
-    mark_as_transition("labels/s02_trial07.npy", 1743, 1745)
-    mark_as_transition("labels/s02_trial07.npy", 1871, 1878)
-    mark_as_transition("labels/s02_trial40.npy", 335, 340)
-    mark_as_transition("labels/s02_trial40.npy", 463, 480)
+    subject = "s02"
+    mark_as_transition(f"labels/{subject}_trial07.npy", 591, 619)
+    mark_as_transition(f"labels/{subject}_trial07.npy", 719, 742)
+    mark_as_transition(f"labels/{subject}_trial07.npy", 1743, 1745)
+    mark_as_transition(f"labels/{subject}_trial07.npy", 1871, 1878)
+    mark_as_transition(f"labels/{subject}_trial40.npy", 335, 340)
+    mark_as_transition(f"labels/{subject}_trial40.npy", 463, 480)
+
+    # Correcting s07
+    subject = "s07"
+    mark_as_transition(f"labels/{subject}_trial01.npy", 978, 991)
+    mark_as_transition(f"labels/{subject}_trial39.npy", 209, 229)
 
     print("Labels corrected")
 
 
-def mark_as_no_blinks(file_path: str):
+def mark_as_no_blinks(file_path, start_index=None, end_index=None):
     """
     Correct false positive blinks
     :param file_path: (str) Path to the file
     :return: None
     """
     labels = np.load(file_path)
-    # print("Before", labels)  # dbg
-    labels.fill(NO_BLINK)
+    if start_index is None and end_index is None:
+        labels.fill(NO_BLINK)
+    else:
+        labels[start_index:end_index] = NO_BLINK
     np.save(file_path, labels)
-    # labels = np.load(file_path)  # dbg
-    # print("After", labels)  # dbg
 
 
 def mark_as_transition(file_path, start_index, end_index):

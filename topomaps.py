@@ -8,7 +8,7 @@ from indian_topomaps import *
 from utils import *
 
 if __name__ == '__main__':
-    path = '/Users/alessandroquirile/PycharmProjects/VAE-EEG-XAI/data_original/'
+    path = 'data_original/'
     l_freq = 0.1
     h_freq = 45
 
@@ -76,7 +76,7 @@ if __name__ == '__main__':
             idx_blinks = events[:, 0] - index
             # durata del blink prima e dopo il picco (in secondi). Può variare per soggetto/trial, meglio rimanere larghi
             blinkTime_pre = 0.09
-            blinkTime_post = 0.12
+            blinkTime_post = 0.13
             blink_pre = int(blinkTime_pre * sample_rate)
             blink_post = int(blinkTime_post * sample_rate)
 
