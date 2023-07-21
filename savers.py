@@ -12,14 +12,14 @@ def save_plot(folder_name: str, l_freq, h_freq, raw, subject, trial):
     print(f"\nSaving {subject}_trial{trial} plot to {folder_name} folder")
     data = raw.get_data()
     sample_rate = get_sample_rate(raw)
-    filtered_data = filter_data(data, sample_rate, l_freq, h_freq)
+    filtered_data = filter_data(data, sample_rate, l_freq, h_freq, verbose=False)
     _save_plot(folder_name, subject, trial, filtered_data, raw.info)
 
 
 def save_events(folder_name: str, subject: str, trial: int, events, sample_index, sample_rate,
                 lowest_peak, highest_peak, magic_number,
                 trial_lowest_peak, trial_highest_peak, thresh):
-    print(f"\nSaving {subject}_trial{trial} events to {folder_name} folder")
+    # print(f"\nSaving {subject}_trial{trial} events to {folder_name} folder")
     filename = _create_filename(folder_name, subject, trial, 'txt')
     os.makedirs(folder_name, exist_ok=True)
     events_in_seconds = _convert_in_seconds(events, sample_index, sample_rate)

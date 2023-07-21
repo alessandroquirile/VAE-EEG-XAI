@@ -127,6 +127,9 @@ def correct_labels():
     mark_as_transition(f"labels/{subject}_trial01.npy", 978, 991)
     mark_as_transition(f"labels/{subject}_trial39.npy", 209, 229)
 
+    # Correcting s16
+    # Todo: nel trial 01 c'è un blink falso positivo al secondo 45
+
     print("Labels corrected")
 
 

@@ -5,6 +5,7 @@ from tqdm import tqdm
 
 from eeg_constants import *
 from indian_topomaps import *
+from savers import save_events
 from utils import *
 
 if __name__ == '__main__':
@@ -13,6 +14,8 @@ if __name__ == '__main__':
     h_freq = 45
 
     # This dictionary has to be updated including missing subjects
+    # For participants 3, 5, 11 and 14, one or several of the last trials are missing due to technical issues
+    # s01-s22 are the only participants who do have videos
     magic_numbers = {
         "s01.bdf": 105,
         "s02.bdf": 160,
@@ -20,12 +23,25 @@ if __name__ == '__main__':
         "s04.bdf": 150,
         "s05.bdf": 150,
         "s06.bdf": 150,
-        "s07.bdf": 110
+        "s07.bdf": 110,
+        "s08.bdf": 150,
+        "s09.bdf": 150,
+        "s10.bdf": 110,
+        "s11.bdf": 110,
+        "s12.bdf": 150,
+        "s13.bdf": 110,
+        "s14.bdf": 110,
+        "s15.bdf": 150,  # qualche falso negativo sul trial 40
+        "s16.bdf": 105,
+        "s17.bdf": 150,
+        "s18.bdf": 105,
+        "s19.bdf": 150,
+        "s20.bdf": 150,
+        "s21.bdf": 150,
+        "s22.bdf": 160
     }
 
-    subjects = get_subjects(path)
     subjects = list(magic_numbers.keys())  # Only the subjects in the dictionary
-    # subjects = ["s02.bdf"]
     for subject in tqdm(subjects, desc="Processing subjects", unit="subject"):
         raw = read_bdf(path, subject)
 
@@ -65,10 +81,10 @@ if __name__ == '__main__':
                                      verbose=False)
 
             # Let's save some useful information on disk
-            """save_events('events', subject, trial, events, index, sample_rate,
+            save_events('events', subject, trial, events, index, sample_rate,
                         subject_lowest_peak, subject_highest_peak, magic_number,
                         trial_lowest_peak, trial_highest_peak,
-                        thresh)"""
+                        thresh)
 
             ##########SALVATORE##########
             cropped_raw_eeg = crop(raw, index, EEG)
