@@ -12,8 +12,7 @@ if __name__ == '__main__':
     path = 'data_original/'
     l_freq = 0.1
     h_freq = 45
-
-    # This dictionary has to be updated including missing subjects
+    
     # For participants 3, 5, 11 and 14, one or several of the last trials are missing due to technical issues
     # s01-s22 are the only participants who do have videos
     magic_numbers = {
@@ -31,7 +30,7 @@ if __name__ == '__main__':
         "s12.bdf": 150,
         "s13.bdf": 110,
         "s14.bdf": 110,
-        "s15.bdf": 150,  # qualche falso negativo sul trial 40
+        "s15.bdf": 150,  # some false negative blinks on trial 40
         "s16.bdf": 105,
         "s17.bdf": 150,
         "s18.bdf": 105,
@@ -41,7 +40,7 @@ if __name__ == '__main__':
         "s22.bdf": 160
     }
 
-    subjects = list(magic_numbers.keys())  # Only the subjects in the dictionary
+    subjects = list(magic_numbers.keys())
     for subject in tqdm(subjects, desc="Processing subjects", unit="subject"):
         raw = read_bdf(path, subject)
 
@@ -80,7 +79,6 @@ if __name__ == '__main__':
             events = find_eog_events(cropped_raw_fp1_fp2, ch_name=FP1_FP2, thresh=thresh, l_freq=1, h_freq=10,
                                      verbose=False)
 
-            # Let's save some useful information on disk
             save_events('events', subject, trial, events, index, sample_rate,
                         subject_lowest_peak, subject_highest_peak, magic_number,
                         trial_lowest_peak, trial_highest_peak,
@@ -165,7 +163,6 @@ if __name__ == '__main__':
                 subject_without_extension = subject.rsplit(".", 1)[0]
                 trial_with_leading_zero = str(trial).zfill(2)
                 file_name = f"{subject_without_extension}_trial{trial_with_leading_zero}.npy"
-                # print("Saving", file_name)
                 np.save(os.path.join(topomap_folder, file_name), trial_topomaps)
                 np.save(os.path.join(labels_folder, file_name), trial_labels)
 
