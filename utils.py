@@ -127,16 +127,40 @@ def correct_labels():
     mark_as_transition(f"labels/{subject}_trial01.npy", 978, 991)
     mark_as_transition(f"labels/{subject}_trial39.npy", 209, 229)
 
+    # Correcting s15
+    subject = "s15"
+    mark_as_no_blinks(f"labels/{subject}_trial40.npy", 693, 699)
+    mark_as_no_blinks(f"labels/{subject}_trial40.npy", 717, 720)
+    mark_as_transition(f"labels/{subject}_trial40.npy", 768, 787)
+    mark_as_blink(f"labels/{subject}_trial40.npy", 788, 790)
+    mark_as_transition(f"labels/{subject}_trial40.npy", 791, 792)
+
     # Correcting s16
-    # Todo: nel trial 01 c'è un blink falso positivo al secondo 45
+    subject = "s16"
+    mark_as_no_blinks(f"labels/{subject}_trial01.npy", 70, 80)
+    mark_as_no_blinks(f"labels/{subject}_trial01.npy", 181, 186)
+    mark_as_no_blinks(f"labels/{subject}_trial01.npy", 309, 336)
 
     print("Labels corrected")
 
+def mark_as_blink(file_path, start_index, end_index):
+    """
+    Correct labels marking blinks
+    :param file_path:  (str) Path to the file
+    :param start_index: Start index to be marked as transition
+    :param end_index: End index to be marked as transition (esclusive)
+    :return: None
+    """
+    labels = np.load(file_path)
+    labels[start_index:end_index] = BLINK  # [start_index; end_index)
+    np.save(file_path, labels)
 
 def mark_as_no_blinks(file_path, start_index=None, end_index=None):
     """
-    Correct false positive blinks
-    :param file_path: (str) Path to the file
+    Correct labels marking no blinks
+    :param file_path:  (str) Path to the file
+    :param start_index: Start index to be marked as transition
+    :param end_index: End index to be marked as transition (esclusive)
     :return: None
     """
     labels = np.load(file_path)
@@ -152,7 +176,7 @@ def mark_as_transition(file_path, start_index, end_index):
     Correct labels marking transitions
     :param file_path:  (str) Path to the file
     :param start_index: Start index to be marked as transition
-    :param end_index: End index to be marked as transition
+    :param end_index: End index to be marked as transition (esclusive)
     :return: None
     """
     labels = np.load(file_path)
