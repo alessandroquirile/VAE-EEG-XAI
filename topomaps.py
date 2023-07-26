@@ -4,7 +4,7 @@ from mne.preprocessing import find_eog_events
 from tqdm import tqdm
 
 from eeg_constants import *
-from indian_topomaps import *
+from indian_functions import *
 from savers import save_events
 from utils import *
 
