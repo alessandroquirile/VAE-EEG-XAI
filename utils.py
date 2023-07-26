@@ -150,6 +150,7 @@ def correct_labels():
 
     print("Labels corrected")
 
+
 def mark_as_blink(file_path, start_index, end_index):
     """
     Correct labels marking blinks
@@ -161,6 +162,7 @@ def mark_as_blink(file_path, start_index, end_index):
     labels = np.load(file_path)
     labels[start_index:end_index] = BLINK  # [start_index; end_index)
     np.save(file_path, labels)
+
 
 def mark_as_no_blinks(file_path, start_index=None, end_index=None):
     """

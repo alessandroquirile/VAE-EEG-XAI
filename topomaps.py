@@ -8,11 +8,47 @@ from indian_topomaps import *
 from savers import save_events
 from utils import *
 
+
+def extract_idx_blinks_about(idx_blinks, blink_pre, blink_post, dataTrial):
+    idx_blinks_about = []
+    for i in idx_blinks:
+        # intorno prima del picco
+        for j in range(max(0, i - blink_pre), i):  # max evita le posizioni negative
+            idx_blinks_about.append(j)
+
+        # intorno dopo
+        for j in range(i, min(i + blink_post, dataTrial.shape[1])):  # min evita le posizioni inesistenti
+            idx_blinks_about.append(j)
+
+    return idx_blinks_about
+
+
+def extract_idx_blinks_near(idx_blinks):
+    idx_blinks_near = []
+    for i in idx_blinks:
+        idx_blinks_near.append(i - 1)  # sample precedente
+        idx_blinks_near.append(i)  # sample del picco
+        idx_blinks_near.append(i + 1)  # sample successivo
+    return idx_blinks_near
+
+
+def labeling(idx_blinks_about, idx_blinks_near):
+    if i in idx_blinks_about:
+        if i in idx_blinks_near:
+            label = BLINK  # da non usare per l'anomaly detection
+        else:
+            label = TRANSITION  # da non usare per l'anomaly detection
+    else:
+        label = NO_BLINK
+    trial_labels.append(label)
+    return trial_labels
+
+
 if __name__ == '__main__':
     path = 'data_original/'
     l_freq = 0.1
     h_freq = 45
-    
+
     # For participants 3, 5, 11 and 14, one or several of the last trials are missing due to technical issues
     # s01-s22 are the only participants who do have videos
     magic_numbers = {
@@ -68,8 +104,6 @@ if __name__ == '__main__':
             data = cropped_raw_fp1_fp2.get_data()
             sample_rate = get_sample_rate(cropped_raw_fp1_fp2)
             filtered_data = filter_data(data, sample_rate, l_freq=1, h_freq=10, verbose=False)
-            trial_lowest_peak = np.min(filtered_data)
-            trial_highest_peak = np.max(filtered_data)
 
             magic_number = magic_numbers[subject]
             thresh = calculate_thresh(filtered_data, magic_number)
@@ -78,16 +112,17 @@ if __name__ == '__main__':
             events = find_eog_events(cropped_raw_fp1_fp2, ch_name=FP1_FP2, thresh=thresh, l_freq=1, h_freq=10,
                                      verbose=False)
 
+            trial_lowest_peak = np.min(filtered_data)
+            trial_highest_peak = np.max(filtered_data)
+
             save_events('events', subject, trial, events, index, sample_rate,
                         subject_lowest_peak, subject_highest_peak, magic_number,
                         trial_lowest_peak, trial_highest_peak,
                         thresh)
 
-            ##########SALVATORE##########
             cropped_raw_eeg = crop(raw, index, EEG)
 
             idx_blinks = events[:, 0] - index
-            # durata del blink prima e dopo il picco (in secondi). Può variare per soggetto/trial, meglio rimanere larghi
             blinkTime_pre = 0.09
             blinkTime_post = 0.13
             blink_pre = int(blinkTime_pre * sample_rate)
@@ -101,22 +136,10 @@ if __name__ == '__main__':
             dataTrial = rawEEGall_trialTest.get_data()
 
             # crea un intorno prima e dopo il picco del blink (per l'etichettatura)
-            idx_blinks_about = []
-            for i in idx_blinks:
-                # intorno prima del picco
-                for j in range(max(0, i - blink_pre), i):  # max evita le posizioni negative
-                    idx_blinks_about.append(j)
-
-                # intorno dopo
-                for j in range(i, min(i + blink_post, dataTrial.shape[1])):  # min evita le posizioni inesistenti
-                    idx_blinks_about.append(j)
+            idx_blinks_about = extract_idx_blinks_about(idx_blinks, blink_pre, blink_post, dataTrial)
 
             # ad ogni id del picco del blink, crea un intorno con l'id precedente e successivo
-            idx_blinks_near = []
-            for i in idx_blinks:
-                idx_blinks_near.append(i - 1)  # sample precedente
-                idx_blinks_near.append(i)  # sample del picco
-                idx_blinks_near.append(i + 1)  # sample successivo
+            idx_blinks_near = extract_idx_blinks_near(idx_blinks)
 
             sec = 0.5
             rawDatasetReReferenced = rawEEGall_trialTest.copy().set_eeg_reference(ref_channels='average', verbose=False)
@@ -134,20 +157,7 @@ if __name__ == '__main__':
                         verbose=False)
                     trial_topomaps.append(interpolatedTopographicMap)
 
-                    ### LABELING
-                    # etichetta i blink in questo modo: 0, 1, 2
-                    # 0 - non blink
-                    # 1 - picco blink (e sample immediadamente prima e dopo)
-                    # 2 - transizione da non blink a picco blink, e da picco blink a non blink
-                    if i in idx_blinks_about:  # se i fa parte di un intorno di blink
-                        if i in idx_blinks_near:  # se i è il picco del blink (o sample immediadamente prima o dopo)
-                            label = BLINK  # da non usare per l'anomaly detection
-                        else:  # transizione
-                            label = TRANSITION  # da non usare per l'anomaly detection
-                    else:  # non blink
-                        label = NO_BLINK
-
-                    trial_labels.append(label)
+                    trial_labels = labeling(idx_blinks_about, idx_blinks_near)
 
             if len(trial_topomaps) != 0:
                 trial_topomaps = np.array(trial_topomaps)
