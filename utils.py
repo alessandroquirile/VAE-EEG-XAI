@@ -127,6 +127,13 @@ def correct_labels():
     mark_as_transition(f"labels/{subject}_trial01.npy", 978, 991)
     mark_as_transition(f"labels/{subject}_trial39.npy", 209, 229)
 
+    # Correcting s10
+    subject = "s10"
+    mark_as_transition(f"labels/{subject}_trial01.npy", 0, 128)
+    mark_as_no_blinks(f"labels/{subject}_trial01.npy", 181, 208)
+    mark_as_no_blinks(f"labels/{subject}_trial01.npy", 309, 315)
+    mark_as_no_blinks(f"labels/{subject}_trial01.npy", 330, 336)
+
     # Correcting s15
     subject = "s15"
     mark_as_no_blinks(f"labels/{subject}_trial40.npy", 693, 699)
