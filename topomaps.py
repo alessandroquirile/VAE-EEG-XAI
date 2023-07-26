@@ -30,7 +30,7 @@ if __name__ == '__main__':
         "s12.bdf": 150,
         "s13.bdf": 110,
         "s14.bdf": 110,
-        "s15.bdf": 150,  # some false negative blinks on trial 40
+        "s15.bdf": 150,
         "s16.bdf": 105,
         "s17.bdf": 150,
         "s18.bdf": 105,
@@ -41,10 +41,9 @@ if __name__ == '__main__':
     }
 
     subjects = list(magic_numbers.keys())
+    montage = mne.channels.make_standard_montage('biosemi32')
     for subject in tqdm(subjects, desc="Processing subjects", unit="subject"):
         raw = read_bdf(path, subject)
-
-        montage = mne.channels.make_standard_montage('biosemi32')
         raw.set_montage(montage, verbose=False)
 
         # Filtering and then resampling avoids aliasing

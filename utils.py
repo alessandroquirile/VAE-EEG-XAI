@@ -141,6 +141,13 @@ def correct_labels():
     mark_as_no_blinks(f"labels/{subject}_trial01.npy", 181, 186)
     mark_as_no_blinks(f"labels/{subject}_trial01.npy", 309, 336)
 
+    # Correcting s17
+    subject = "s17"
+    mark_as_no_blinks(f"labels/{subject}_trial01.npy", 38, 65)
+    mark_as_no_blinks(f"labels/{subject}_trial01.npy", 166, 193)
+    mark_as_transition(f"labels/{subject}_trial01.npy", 259, 294)
+    mark_as_transition(f"labels/{subject}_trial01.npy", 321, 368)
+
     print("Labels corrected")
 
 def mark_as_blink(file_path, start_index, end_index):

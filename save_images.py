@@ -6,7 +6,7 @@ from tqdm import tqdm
 
 if __name__ == '__main__':
     # Check visuale, crea i png delle topomap specificate
-    subject = "s06"
+    subject = "s22"
     trial = "01"
 
     file_name = subject + "_trial" + str(trial) + ".npy"
