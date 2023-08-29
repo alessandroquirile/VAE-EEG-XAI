@@ -96,7 +96,7 @@ def createTopographicMapFromChannelValues(channelValues, rawDatasetReReferenced,
 
     rawDatasetForMontageLocation = rawDatasetReReferenced.copy()
     MontageChannelLocation = rawDatasetForMontageLocation.info['dig']
-    lengthOfTopographicMap = 32
+    lengthOfTopographicMap = 40  # 40x40
     emptyTopographicMap = np.array(np.zeros([lengthOfTopographicMap, lengthOfTopographicMap]))
 
     if verbose:
