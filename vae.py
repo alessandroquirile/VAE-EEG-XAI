@@ -13,14 +13,14 @@ from tensorflow import keras
 from tqdm import tqdm
 
 
-def load_data(topomaps_folder: str, labels_folder: str, test_size, anomaly_detection) -> tuple:
+def load_data(topomaps_folder: str, labels_folder: str, test_size, anomaly_detection):
     """
     Load data returning training set and test set
 
     :param topomaps_folder: (str) Path to the folder containing topomaps
     :param labels_folder: (str) Path to the folder containing labels
-    :param test_size: Test set size. Default 0.2
-    :return: (x_train, y_train) the training set and (x_test, y_test) the test set
+    :param test_size: Test set size
+    :return: x_train, x_test, y_train, y_test
     """
 
     x, y = _create_dataset(topomaps_folder, labels_folder)
@@ -49,7 +49,7 @@ def load_data(topomaps_folder: str, labels_folder: str, test_size, anomaly_detec
         print("For manifold analysis")
         x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=test_size)
 
-    return (x_train, y_train), (x_test, y_test)
+    return x_train, x_test, y_train, y_test
 
 
 def _create_dataset(topomaps_folder, labels_folder):
@@ -513,7 +513,7 @@ class Decoder(keras.Model):
 
 if __name__ == '__main__':
     # Load data
-    (x_train, y_train), (x_test, y_test) = load_data("topomaps", "labels", 0.2, False)
+    x_train, x_test, y_train, y_test = load_data("topomaps", "labels", 0.2, False)
 
     # Expand dimensions to (None, 40, 40, 1)
     x_train = np.expand_dims(x_train, -1)
