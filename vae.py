@@ -1,117 +1,88 @@
 import os
 
-import cv2
 import numpy as np
 import pandas as pd
 import seaborn as sns
 import tensorflow as tf
 from keras import layers
 from keras.optimizers.legacy import Adam
-from keras.src.callbacks import EarlyStopping
 from matplotlib import pyplot as plt
 from sklearn.manifold import TSNE
 from sklearn.model_selection import train_test_split
 from tensorflow import keras
+from tqdm import tqdm
 
 
-def load_data_new(topomap_folder: str, labels_folder: str) -> list:
+def load_data(topomaps_folder: str, labels_folder: str, test_size, anomaly_detection) -> tuple:
     """
-    Load and pair topomap data and corresponding label data from separate folders
-    :param topomap_folder: (str) The path to the folder containing topomaps .npy files
-    :param labels_folder: (str) The path to the folder containing labels .npy files
-    :return: (list) A list of tuples, where each tuple contains a topomap ndarray and its corresponding label 1D-array.
+    Load data returning training set and test set
 
-    Note:
-        The function assumes that the filenames of the topomaps and labels are in the same order.
-        It also assumes that there is a one-to-one correspondence between the topomap files and the label files.
-        If there are inconsistencies between the shapes of the topomap and label files, it will print a warning message.
-
-    Example:
-        topomap_folder = "topomaps"
-        labels_folder = "labels"
-        dataset = load_data(topomap_folder, labels_folder)
-    """
-    topomap_files = os.listdir(topomap_folder)
-    labels_files = os.listdir(labels_folder)
-    dataset = []
-
-    for topomap_file, label_file in zip(topomap_files, labels_files):
-        if topomap_file.endswith(".npy") and label_file.endswith(".npy"):
-            topomap_path = os.path.join(topomap_folder, topomap_file)
-            label_path = os.path.join(labels_folder, label_file)
-
-            topomap_data = np.load(topomap_path)
-            label_data = np.load(label_path)
-
-            if topomap_data.shape[0] == label_data.shape[0]:
-                dataset.append((topomap_data, label_data))
-            else:
-                print(f"Warning: Inconsistent shapes for {topomap_file} and {label_file}.")
-
-    return dataset
-
-
-def load_data(data_path, test_size):
-    """
-    Loads image data from a specified folder path, preprocesses the images,
-    and splits the data into training and testing sets. Filters the training set
-    to include only images with a label of 0 (for anomaly detection).
-
-    :param data_path: (str) The path to the folder containing image files
-    :param test_size: (float, optional) The proportion of the data to be used for testing
-
-    :return: training set and test set as tuples
+    :param topomaps_folder: (str) Path to the folder containing topomaps
+    :param labels_folder: (str) Path to the folder containing labels
+    :param test_size: Test set size. Default 0.2
+    :return: (x_train, y_train) the training set and (x_test, y_test) the test set
     """
 
-    file_names = []
-    labels = []
+    x, y = _create_dataset(topomaps_folder, labels_folder)
 
-    # Iterate through the folder and its subfolders to find image files
-    for root, _, files in os.walk(data_path):
-        for file_name in files:
-            # Check if the file name starts with 'topomapSample_' and ends with '.png'
-            if file_name.startswith('topomapSample_') and file_name.endswith('.png'):
-                # Extract the label from the file name
-                label = int(file_name.split('_')[-1][0])
-                file_names.append(os.path.join(root, file_name))
-                labels.append(label)
+    print(f"Splitting data set into training set {1 - test_size} and test set {test_size}...")
 
-    # Check if any image files were found
-    if len(file_names) == 0:
-        raise ValueError("No image files found at", data_path)
+    if anomaly_detection:
+        print("For anomaly detection")
+        # Training set only contains images whose label is 0 for anomaly detection
+        train_indices = np.where(y == 0)[0]
+        x_train = x[train_indices]
+        y_train = y[train_indices]
 
-    # Sort the file names and labels to ensure consistent ordering
-    file_names, labels = zip(*sorted(zip(file_names, labels)))
+        # Split the remaining data into testing sets
+        remaining_indices = np.where(y != 0)[0]
+        x_remaining = x[remaining_indices]
+        y_remaining = y[remaining_indices]
+        _, x_test, _, y_test = train_test_split(x_remaining, y_remaining, test_size=test_size)
 
-    images = []
-    # Load and preprocess the images
-    for file_name in file_names:
-        image = cv2.imread(file_name)
-        image = cv2.resize(image, (32, 32))
-        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)  # original images are RGBA
-        images.append(image)
-
-    x = np.array(images)
-    y = np.array(labels)
-
-    # Training set only contains images whose label is 0 for anomaly detection
-    train_indices = np.where(y == 0)[0]
-    x_train = x[train_indices]
-    y_train = y[train_indices]
-
-    # Split the remaining data into testing sets
-    remaining_indices = np.where(y != 0)[0]
-    x_remaining = x[remaining_indices]
-    y_remaining = y[remaining_indices]
-    _, x_test, _, y_test = train_test_split(x_remaining, y_remaining, test_size=test_size)
-
-    # Check dataset for anomaly detection task
-    y_train_only_contains_label_0 = all(y_train) == 0
-    y_test_only_contains_label_1_and_2 = all(label in [1, 2] for label in y_test)
-    if not y_train_only_contains_label_0 or not y_test_only_contains_label_1_and_2:
-        raise ValueError("Data was not loaded successfully")
+        # Check dataset for anomaly detection task
+        y_train_only_contains_label_0 = all(y_train) == 0
+        y_test_only_contains_label_1_and_2 = all(label in [0, 1, 2] for label in y_test)
+        if not y_train_only_contains_label_0 or not y_test_only_contains_label_1_and_2:
+            raise Exception("Data was not loaded successfully")
+    else:
+        print("For manifold analysis")
+        x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=test_size)
 
     return (x_train, y_train), (x_test, y_test)
+
+
+def _create_dataset(topomaps_folder, labels_folder):
+    """
+    Creates a data set
+    :param topomaps_folder: (str) Path to the folder containing topomaps
+    :param labels_folder: (str) Path to the folder containing labels
+    :return: data and labels
+    """
+    topomaps_files = os.listdir(topomaps_folder)
+    labels_files = os.listdir(labels_folder)
+
+    topomaps_files.sort()
+    labels_files.sort()
+
+    x = []
+    y = []
+
+    n_files = len(topomaps_files)
+
+    for topomaps_file, labels_file in tqdm(zip(topomaps_files, labels_files), total=n_files, desc="Loading data set"):
+        topomaps_array = np.load(f"{topomaps_folder}/{topomaps_file}")
+        labels_array = np.load(f"{labels_folder}/{labels_file}")
+        if topomaps_array.shape[0] != labels_array.shape[0]:
+            raise Exception("Shapes must be equal")
+        for i in range(topomaps_array.shape[0]):
+            x.append(topomaps_array[i])
+            y.append(labels_array[i])
+
+    x = np.array(x)
+    y = np.array(y)
+
+    return x, y
 
 
 def sample(z_mean, z_log_var):
@@ -137,24 +108,25 @@ def plot_latent_space(vae, data, points_to_sample=30, figsize=15):
     decoder model based on a specific location in the latent space.
 
     :param vae: The trained VAE model.
-    :param data: Data to have a latent representation of
+    :param data: Data to have a latent representation of. Shape should be (num_samples, 32, 32).
     :param points_to_sample: The number of points to sample along each axis of the plot. Default is 30.
     :param figsize: The size of the figure (width and height) in inches. Default is 15.
     :return: None (displays the plot).
     """
     image_size = 32
     scale = 1.0
-    n_channels = 3  # RGB
 
     # Create an empty figure to store the generated images
     # Width: image_size * points_to_sample (default 32x15 = 480)
     # Height: image_size * points_to_sample (default 32x15 = 480)
-    # Channels: 3 (RGB)
-    figure = np.zeros((image_size * points_to_sample, image_size * points_to_sample, n_channels))
+    figure = np.zeros((image_size * points_to_sample, image_size * points_to_sample))
 
     # Define linearly spaced coordinates corresponding to the 2D plot in the latent space
     grid_x = np.linspace(-scale, scale, points_to_sample)
     grid_y = np.linspace(-scale, scale, points_to_sample)[::-1]  # Reverse the order of grid_y
+
+    # Reshape data to (num_samples, 32*32) instead of (num_samples, 32, 32)
+    # data = data.reshape(data.shape[0], -1)
 
     # Apply t-SNE to the latent space
     z_mean, _, _ = vae.encoder.predict(data)
@@ -173,10 +145,10 @@ def plot_latent_space(vae, data, points_to_sample=30, figsize=15):
             x_decoded = vae.decoder.predict(np.expand_dims(z_sample, axis=0))
 
             # Reshape the decoded image to match the desired image size
-            digit = x_decoded.reshape(image_size, image_size, n_channels)
+            digit = x_decoded.reshape(image_size, image_size)
 
             # Add the digit to the corresponding position in the figure
-            figure[i * image_size: (i + 1) * image_size, j * image_size: (j + 1) * image_size, ] = digit
+            figure[i * image_size: (i + 1) * image_size, j * image_size: (j + 1) * image_size] = digit
 
     # Plotting the figure
     plt.figure(figsize=(figsize, figsize))
@@ -202,18 +174,16 @@ def plot_latent_space(vae, data, points_to_sample=30, figsize=15):
 def plot_label_clusters(vae, data, labels):
     """
     Plots a t-SNE projection of the given data, with labels represented by different colors.
+
     :param vae: The trained VAE (Variational Autoencoder) model.
-    :param data: Input data
-    :param labels: Array of labels corresponding to the data
+    :param data: Input data of shape (num_samples, 32, 32).
+    :param labels: Array of labels corresponding to the data of shape (num_samples,).
     :return: None (displays the plot)
     """
     z_mean, _, _ = vae.encoder.predict(data)
 
-    # Reshape data to (n_images, data[1] x ... x data[n])
-    # The -1 argument in reshape() automatically calculates the appropriate size
-    # for the second dimension based on the other dimension(s)
-    n_images = data.shape[0]  # 50000 for cifar10
-    data = np.reshape(data, (n_images, -1))
+    # Reshape data to (num_samples, 32x32) instead of (num_samples, 32, 32)
+    data = data.reshape(data.shape[0], -1)
 
     tsne = TSNE(n_components=2, verbose=1)
     z_mean_reduced = tsne.fit_transform(data)
@@ -223,9 +193,12 @@ def plot_label_clusters(vae, data, labels):
     df["comp-1"] = z_mean_reduced[:, 0]
     df["comp-2"] = z_mean_reduced[:, 1]
 
-    # Cifar10 contains 10 classes
+    # Get the distinct labels and the number of colors needed
     distinct_labels = np.unique(labels)
     n_colors = len(distinct_labels)
+
+    # Create the plot
+    plt.figure(figsize=(10, 8))
     sns.scatterplot(data=df, x="comp-1", y="comp-2", hue=df.labels.tolist(),
                     palette=sns.color_palette("hls", n_colors)).set(title="Data t-SNE projection")
     plt.show()
@@ -400,7 +373,7 @@ class Encoder(keras.Model):
     - call(inputs, training=None, mask=None): Executes a forward pass on the encoder.
     """
 
-    def __init__(self, latent_dimension):
+    def __init__(self, latent_dimension, input_shape):
         """
         Initializes an Encoder model instance.
 
@@ -409,6 +382,7 @@ class Encoder(keras.Model):
         super(Encoder, self).__init__()
         self.latent_dim = latent_dimension
         self.conv_block1 = keras.Sequential([
+            layers.Input(shape=input_shape),
             layers.Conv2D(filters=64, kernel_size=3, activation="relu", strides=2, padding="same"),
             layers.BatchNormalization()
         ])
@@ -502,18 +476,18 @@ class Decoder(keras.Model):
             layers.BatchNormalization()
         ])
         self.deconv3 = keras.Sequential([
-            layers.Conv2DTranspose(filters=128, kernel_size=3, activation="relu", strides=2, padding="same"),
+            layers.Conv2DTranspose(filters=128, kernel_size=3, activation="relu", strides=2, padding="valid"),
             layers.BatchNormalization()
         ])
         self.deconv4 = keras.Sequential([
-            layers.Conv2DTranspose(filters=64, kernel_size=3, activation="relu", strides=1, padding="same"),
+            layers.Conv2DTranspose(filters=64, kernel_size=3, activation="relu", strides=1, padding="valid"),
             layers.BatchNormalization()
         ])
         self.deconv5 = keras.Sequential([
-            layers.Conv2DTranspose(filters=64, kernel_size=3, activation="relu", strides=2, padding="same"),
+            layers.Conv2DTranspose(filters=64, kernel_size=3, activation="relu", strides=2, padding="valid"),
             layers.BatchNormalization()
         ])
-        self.deconv6 = layers.Conv2DTranspose(filters=3, kernel_size=3, activation="sigmoid", padding="same")
+        self.deconv6 = layers.Conv2DTranspose(filters=1, kernel_size=2, activation="sigmoid", padding="valid")
 
     def call(self, inputs, training=None, mask=None):
         """
@@ -538,10 +512,12 @@ class Decoder(keras.Model):
 
 
 if __name__ == '__main__':
-    data_path = "topomaps_short/"
+    # Load data
+    (x_train, y_train), (x_test, y_test) = load_data("topomaps", "labels", 0.2, False)
 
-    # Load the data
-    (x_train, y_train), (x_test, y_test) = load_data(data_path, test_size=0.2)
+    # Expand dimensions to (None, 40, 40, 1)
+    x_train = np.expand_dims(x_train, -1)
+    x_test = np.expand_dims(x_test, -1)
 
     # Print data shapes
     print("x_train shape:", x_train.shape)
@@ -553,38 +529,37 @@ if __name__ == '__main__':
     x_train = x_train.astype("float32") / 255.0
     x_test = x_test.astype("float32") / 255.0
 
-    latent_dimension = 50
-    encoder = Encoder(latent_dimension)
+    # Compiling the VAE
+    latent_dimension = 25  # By prof. Luongo
+    encoder = Encoder(latent_dimension, (40, 40, 1))
     decoder = Decoder(latent_dimension)
+    vae = VAE(encoder, decoder)
+    vae.compile(Adam(learning_rate=0.001))
 
     # Training
     x_train, x_val, y_train, y_val = train_test_split(x_train, y_train, test_size=0.2)
-    early_stopping = EarlyStopping(monitor="val_loss", patience=20, mode="min", verbose=1)
-    vae = VAE(encoder, decoder)
-    vae.compile(Adam(epsilon=0.1))  # Epsilon=0.1 seems to work better than the other options
-    epochs = 250
-    batch_size = 32
-    history = vae.fit(x_train, epochs=epochs, batch_size=batch_size, validation_data=(x_val,),
-                      callbacks=[early_stopping])
+    epochs = 10
+    batch_size = 512
+    history = vae.fit(x_train, epochs=epochs, batch_size=batch_size, validation_data=(x_val,))
 
     # Plot learning curves
     plot_metric(history, "loss")
     plot_metric(history, "reconstruction_loss")
     plot_metric(history, "kl_loss")
 
-    plot_latent_space(vae, x_train)
-    plot_label_clusters(vae, x_train, y_train)
+    """plot_latent_space(vae, x_train)
+    plot_label_clusters(vae, x_train, y_train)"""
 
     # Check reconstruction skills against a random test sample
-    image_index = 100
+    image_index = 5
     plt.title(f"Original image {image_index}")
     original_image = x_test[image_index]
-    plt.imshow(original_image)
+    plt.imshow(original_image, cmap="gray")
     plt.show()
 
     plt.title(f"Reconstructed image {image_index}, latent_dim = {latent_dimension}, epochs = {epochs}, "
               f"batch_size = {batch_size}")
     x_test_reconstructed = vae.predict(x_test)
     reconstructed_image = x_test_reconstructed[image_index]
-    plt.imshow(reconstructed_image)
+    plt.imshow(reconstructed_image, cmap="gray")
     plt.show()
