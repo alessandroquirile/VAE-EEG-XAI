@@ -46,7 +46,7 @@ def load_data(topomaps_folder: str, labels_folder: str, test_size, anomaly_detec
         if not y_train_only_contains_label_0 or not y_test_only_contains_label_1_and_2:
             raise Exception("Data was not loaded successfully")
     else:
-        print("For manifold analysis")
+        print("For latent space analysis")
         x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=test_size)
 
     return x_train, x_test, y_train, y_test
@@ -446,16 +446,14 @@ class Decoder(keras.Model):
     - call(inputs, training=None, mask=None): Executes a forward pass on the decoder.
     """
 
-    def __init__(self, latent_dimension):
+    def __init__(self):
         """
         Initializes a Decoder model instance.
 
-        :param latent_dimension: The dimensionality of the latent space.
         """
         super(Decoder, self).__init__()
-        self.latent_dim = latent_dimension
         self.dense1 = keras.Sequential([
-            layers.Dense(units=100, activation="relu"),
+            layers.Dense(units=4096, activation="relu"),
             layers.BatchNormalization()
         ])
         self.dense2 = keras.Sequential([
@@ -512,8 +510,16 @@ class Decoder(keras.Model):
 
 
 if __name__ == '__main__':
+    # tf.config.run_functions_eagerly(True)
+
     # Load data
     x_train, x_test, y_train, y_test = load_data("topomaps", "labels", 0.2, False)
+
+    # I am reducing the size of data set for speed purposes
+    x_train = x_train[:500]
+    y_train = y_train[:500]
+    x_test = x_test[:500]
+    y_test = y_test[:500]
 
     # Expand dimensions to (None, 40, 40, 1)
     x_train = np.expand_dims(x_train, -1)
@@ -530,16 +536,18 @@ if __name__ == '__main__':
     x_test = x_test.astype("float32") / 255.0
 
     # Compiling the VAE
-    latent_dimension = 25  # By prof. Luongo
+    latent_dimension = 25  # Longo's paper
     encoder = Encoder(latent_dimension, (40, 40, 1))
-    decoder = Decoder(latent_dimension)
+    decoder = Decoder()
     vae = VAE(encoder, decoder)
     vae.compile(Adam(learning_rate=0.001))
 
     # Training
     x_train, x_val, y_train, y_val = train_test_split(x_train, y_train, test_size=0.2)
-    epochs = 10
-    batch_size = 512
+    print("x_val shape:", x_val.shape)
+    print("y_val shape:", y_val.shape)
+    epochs = 100
+    batch_size = 128
     history = vae.fit(x_train, epochs=epochs, batch_size=batch_size, validation_data=(x_val,))
 
     # Plot learning curves
@@ -547,13 +555,14 @@ if __name__ == '__main__':
     plot_metric(history, "reconstruction_loss")
     plot_metric(history, "kl_loss")
 
-    """plot_latent_space(vae, x_train)
-    plot_label_clusters(vae, x_train, y_train)"""
+    # plot_latent_space(vae, x_train)
+    # plot_label_clusters(vae, x_train, y_train)
 
     # Check reconstruction skills against a random test sample
     image_index = 5
     plt.title(f"Original image {image_index}")
     original_image = x_test[image_index]
+    print(original_image)
     plt.imshow(original_image, cmap="gray")
     plt.show()
 
@@ -561,5 +570,6 @@ if __name__ == '__main__':
               f"batch_size = {batch_size}")
     x_test_reconstructed = vae.predict(x_test)
     reconstructed_image = x_test_reconstructed[image_index]
+    print(reconstructed_image)
     plt.imshow(reconstructed_image, cmap="gray")
     plt.show()
