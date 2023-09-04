@@ -562,7 +562,6 @@ if __name__ == '__main__':
     image_index = 5
     plt.title(f"Original image {image_index}")
     original_image = x_test[image_index]
-    print(original_image)
     plt.imshow(original_image, cmap="gray")
     plt.show()
 
@@ -570,6 +569,5 @@ if __name__ == '__main__':
               f"batch_size = {batch_size}")
     x_test_reconstructed = vae.predict(x_test)
     reconstructed_image = x_test_reconstructed[image_index]
-    print(reconstructed_image)
     plt.imshow(reconstructed_image, cmap="gray")
     plt.show()
