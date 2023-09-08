@@ -113,7 +113,7 @@ def plot_latent_space(vae, data, points_to_sample=30, figsize=15):
     :param figsize: The size of the figure (width and height) in inches. Default is 15.
     :return: None (displays the plot).
     """
-    image_size = 32
+    image_size = data.shape[1]
     scale = 1.0
 
     # Create an empty figure to store the generated images
@@ -510,12 +510,11 @@ class Decoder(keras.Model):
 
 
 if __name__ == '__main__':
-    # tf.config.run_functions_eagerly(True)
-
     # Load data
     x_train, x_test, y_train, y_test = load_data("topomaps", "labels", 0.2, False)
 
     # I am reducing the size of data set for speed purposes
+    # Remove this in production
     x_train = x_train[:500]
     y_train = y_train[:500]
     x_test = x_test[:500]
