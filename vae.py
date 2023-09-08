@@ -7,8 +7,10 @@ import tensorflow as tf
 from keras import layers
 from keras.optimizers.legacy import Adam
 from matplotlib import pyplot as plt
+from sklearn.base import BaseEstimator
 from sklearn.manifold import TSNE
-from sklearn.model_selection import train_test_split
+from sklearn.metrics import mean_absolute_error, make_scorer
+from sklearn.model_selection import train_test_split, GridSearchCV
 from tensorflow import keras
 from tqdm import tqdm
 
@@ -85,6 +87,10 @@ def _create_dataset(topomaps_folder, labels_folder):
     return x, y
 
 
+def flat_mae(x, y):
+    return mean_absolute_error(y.flatten(), x.flatten())
+
+
 def sample(z_mean, z_log_var):
     """
     Generates random samples from a Gaussian distribution using the reparameterization trick.
@@ -117,16 +123,11 @@ def plot_latent_space(vae, data, points_to_sample=30, figsize=15):
     scale = 1.0
 
     # Create an empty figure to store the generated images
-    # Width: image_size * points_to_sample (default 32x15 = 480)
-    # Height: image_size * points_to_sample (default 32x15 = 480)
     figure = np.zeros((image_size * points_to_sample, image_size * points_to_sample))
 
     # Define linearly spaced coordinates corresponding to the 2D plot in the latent space
     grid_x = np.linspace(-scale, scale, points_to_sample)
     grid_y = np.linspace(-scale, scale, points_to_sample)[::-1]  # Reverse the order of grid_y
-
-    # Reshape data to (num_samples, 32*32) instead of (num_samples, 32, 32)
-    # data = data.reshape(data.shape[0], -1)
 
     # Apply t-SNE to the latent space
     z_mean, _, _ = vae.encoder.predict(data)
@@ -182,7 +183,6 @@ def plot_label_clusters(vae, data, labels):
     """
     z_mean, _, _ = vae.encoder.predict(data)
 
-    # Reshape data to (num_samples, 32x32) instead of (num_samples, 32, 32)
     data = data.reshape(data.shape[0], -1)
 
     tsne = TSNE(n_components=2, verbose=1)
@@ -214,37 +214,32 @@ def plot_metric(history, metric):
     plt.show()
 
 
-class VAE(keras.Model):
-    """
-    Variational Autoencoder (VAE) model implementation.
+class VAEWrapper:
+    def __init__(self, **kwargs):
+        self.vae = VAE(**kwargs)
+        self.vae.compile(Adam())
 
-    This class represents a VAE model, which consists of an encoder and a decoder.
-    It inherits from the `keras.Model` class.
+    def fit(self, x, y, **kwargs):
+        self.vae.fit(x, y, **kwargs)
 
-    Attributes:
+    def get_config(self):
+        return self.vae.get_config()
 
-    - encoder (keras.Model): The encoder model responsible for encoding input data into latent space.
-    - decoder (keras.Model): The decoder model responsible for decoding latent space representations into output data.
-    - total_loss_tracker (keras.metrics.Mean): A metric tracker for the total loss of the VAE during training (reconstruction + kl).
-    - reconstruction_loss_tracker (keras.metrics.Mean): A metric tracker for the reconstruction loss component of the VAE during training.
-    - kl_loss_tracker (keras.metrics.Mean): A metric tracker for the KL divergence loss component of the VAE during training.
+    def get_params(self, deep):
+        return self.vae.get_params(deep)
 
-    Methods:
+    def set_params(self, **params):
+        return self.vae.set_params(**params)
 
-    - train_step(data): Performs a single training step on the VAE model.
-    """
 
-    def __init__(self, encoder, decoder, **kwargs):
-        """
-        Initializes a VAE model instance.
-
-        :param encoder: The encoder model for the VAE.
-        :param decoder: The decoder model for the VAE.
-        :param kwargs: Additional keyword arguments to be passed to the base `keras.Model` class constructor.
-        """
+class VAE(keras.Model, BaseEstimator):
+    def __init__(self, encoder, decoder, epochs=None, l_rate=None, batch_size=None, **kwargs):
         super().__init__(**kwargs)
         self.encoder = encoder
         self.decoder = decoder
+        self.epochs = epochs  # For grid search
+        self.l_rate = l_rate  # For grid search
+        self.batch_size = batch_size  # For grid search
         self.total_loss_tracker = keras.metrics.Mean(name="total_loss")
         self.reconstruction_loss_tracker = keras.metrics.Mean(name="reconstruction_loss")
         self.kl_loss_tracker = keras.metrics.Mean(name="kl_loss")
@@ -256,10 +251,6 @@ class VAE(keras.Model):
 
     @property
     def metrics(self):
-        """
-        Returns a list of metrics tracked by the VAE model during training.
-        :return: List of metrics tracked by the VAE model.
-        """
         return [
             self.total_loss_tracker,
             self.reconstruction_loss_tracker,
@@ -267,12 +258,7 @@ class VAE(keras.Model):
         ]
 
     def train_step(self, data):
-        """
-        Performs a single training step on the VAE model.
-
-        :param data: Input data batch for training the VAE.
-        :return: Dictionary containing the updated metric values.
-        """
+        data, labels = data
         with tf.GradientTape() as tape:
             # Forward pass
             z_mean, z_log_var, z = self.encoder(data)
@@ -306,23 +292,7 @@ class VAE(keras.Model):
         }
 
     def test_step(self, data):
-        """
-        Performs a forward pass and computes losses for a single testing step in a Variational Autoencoder.
-
-        Parameters:
-            - data (tensor): The input data for testing.
-
-        Returns:
-            dict: A dictionary containing the computed losses for the testing step.
-
-        Example usage:
-            test_data = ...
-            losses = model.test_step(test_data)
-
-        Note:
-            This method is typically used as part of the testing/evaluation loop in a Variational Autoencoder model.
-
-        """
+        data, labels = data
         # Forward pass
         z_mean, z_log_var, z = self.encoder(data)
         reconstruction = self.decoder(z)
@@ -349,69 +319,36 @@ class VAE(keras.Model):
         }
 
 
-class Encoder(keras.Model):
-    """
-    Encoder model implementation.
-
-    This class represents an encoder model, which encodes input data into a latent space.
-    It inherits from the `keras.Model` class.
-
-    Attributes:
-
-    - latent_dim (int): The dimensionality of the latent space.
-    - conv_block1 (keras.Sequential): Sequential model for the first convolutional block.
-    - conv_block2 (keras.Sequential): Sequential model for the second convolutional block.
-    - conv_block3 (keras.Sequential): Sequential model for the third convolutional block.
-    - flatten (keras.layers.Flatten): Flatten layer.
-    - dense (keras.layers.Dense): Dense layer for the output.
-    - z_mean (keras.layers.Dense): Dense layer for the mean of the latent space.
-    - z_log_var (keras.layers.Dense): Dense layer for the log variance of the latent space.
-    - sampling (function): Function for sampling from the latent space distribution.
-
-    Methods:
-
-    - call(inputs, training=None, mask=None): Executes a forward pass on the encoder.
-    """
-
-    def __init__(self, latent_dimension, input_shape):
-        """
-        Initializes an Encoder model instance.
-
-        :param latent_dimension: The dimensionality of the latent space.
-        """
+@keras.saving.register_keras_serializable()
+class Encoder(keras.layers.Layer):
+    def __init__(self, latent_dimension):
         super(Encoder, self).__init__()
         self.latent_dim = latent_dimension
-        self.conv_block1 = keras.Sequential([
-            layers.Input(shape=input_shape),
-            layers.Conv2D(filters=64, kernel_size=3, activation="relu", strides=2, padding="same"),
-            layers.BatchNormalization()
-        ])
-        self.conv_block2 = keras.Sequential([
-            layers.Conv2D(filters=128, kernel_size=3, activation="relu", strides=2, padding="same"),
-            layers.BatchNormalization()
-        ])
-        self.conv_block3 = keras.Sequential([
-            layers.Conv2D(filters=256, kernel_size=3, activation="relu", strides=2, padding="same"),
-            layers.BatchNormalization()
-        ])
+
+        self.conv1 = layers.Conv2D(filters=64, kernel_size=3, activation="relu", strides=2, padding="same")
+        self.bn1 = layers.BatchNormalization()
+
+        self.conv2 = layers.Conv2D(filters=128, kernel_size=3, activation="relu", strides=2, padding="same")
+        self.bn2 = layers.BatchNormalization()
+
+        self.conv3 = layers.Conv2D(filters=256, kernel_size=3, activation="relu", strides=2, padding="same")
+        self.bn3 = layers.BatchNormalization()
+
         self.flatten = layers.Flatten()
         self.dense = layers.Dense(units=100, activation="relu")
+
         self.z_mean = layers.Dense(latent_dimension, name="z_mean")
         self.z_log_var = layers.Dense(latent_dimension, name="z_log_var")
+
         self.sampling = sample
 
     def call(self, inputs, training=None, mask=None):
-        """
-        Executes a forward pass on the encoder.
-
-        :param inputs: Input data to the encoder.
-        :param training: Boolean flag indicating whether the model is in training mode.
-        :param mask: Mask tensor.
-        :return: Tuple containing the mean, log variance, and sampled representation from the latent space.
-        """
-        x = self.conv_block1(inputs)
-        x = self.conv_block2(x)
-        x = self.conv_block3(x)
+        x = self.conv1(inputs)
+        x = self.bn1(x)
+        x = self.conv2(x)
+        x = self.bn2(x)
+        x = self.conv3(x)
+        x = self.bn3(x)
         x = self.flatten(x)
         x = self.dense(x)
         z_mean = self.z_mean(x)
@@ -420,91 +357,55 @@ class Encoder(keras.Model):
         return z_mean, z_log_var, z
 
 
-class Decoder(keras.Model):
-    """
-    Decoder model implementation.
-
-    This class represents a decoder model, which decodes latent space representations into output data.
-    It inherits from the `keras.Model` class.
-
-    Attributes:
-
-    - latent_dim (int): The dimensionality of the latent space.
-    - dense1 (keras.layers.Dense): Dense layer 1.
-    - dense2 (keras.layers.Dense): Dense layer 2.
-    - dense3 (keras.layers.Dense): Dense layer 3.
-    - reshape (keras.layers.Reshape): Reshape layer.
-    - deconv1 (keras.layers.Conv2DTranspose): Convolutional transpose layer 1.
-    - deconv2 (keras.layers.Conv2DTranspose): Convolutional transpose layer 2.
-    - deconv3 (keras.layers.Conv2DTranspose): Convolutional transpose layer 3.
-    - deconv4 (keras.layers.Conv2DTranspose): Convolutional transpose layer 4.
-    - deconv5 (keras.layers.Conv2DTranspose): Convolutional transpose layer 5.
-    - deconv6 (keras.layers.Conv2DTranspose): Convolutional transpose layer 6.
-
-    Methods:
-
-    - call(inputs, training=None, mask=None): Executes a forward pass on the decoder.
-    """
-
+@keras.saving.register_keras_serializable()
+class Decoder(keras.layers.Layer):
     def __init__(self):
-        """
-        Initializes a Decoder model instance.
-
-        """
         super(Decoder, self).__init__()
-        self.dense1 = keras.Sequential([
-            layers.Dense(units=4096, activation="relu"),
-            layers.BatchNormalization()
-        ])
-        self.dense2 = keras.Sequential([
-            layers.Dense(units=1024, activation="relu"),
-            layers.BatchNormalization()
-        ])
-        self.dense3 = keras.Sequential([
-            layers.Dense(units=4096, activation="relu"),
-            layers.BatchNormalization()
-        ])
+        self.dense1 = layers.Dense(units=4096, activation="relu")
+        self.bn1 = layers.BatchNormalization()
+
+        self.dense2 = layers.Dense(units=1024, activation="relu")
+        self.bn2 = layers.BatchNormalization()
+
+        self.dense3 = layers.Dense(units=4096, activation="relu")
+        self.bn3 = layers.BatchNormalization()
+
         self.reshape = layers.Reshape((4, 4, 256))
-        self.deconv1 = keras.Sequential([
-            layers.Conv2DTranspose(filters=256, kernel_size=3, activation="relu", strides=2, padding="same"),
-            layers.BatchNormalization()
-        ])
-        self.deconv2 = keras.Sequential([
-            layers.Conv2DTranspose(filters=128, kernel_size=3, activation="relu", strides=1, padding="same"),
-            layers.BatchNormalization()
-        ])
-        self.deconv3 = keras.Sequential([
-            layers.Conv2DTranspose(filters=128, kernel_size=3, activation="relu", strides=2, padding="valid"),
-            layers.BatchNormalization()
-        ])
-        self.deconv4 = keras.Sequential([
-            layers.Conv2DTranspose(filters=64, kernel_size=3, activation="relu", strides=1, padding="valid"),
-            layers.BatchNormalization()
-        ])
-        self.deconv5 = keras.Sequential([
-            layers.Conv2DTranspose(filters=64, kernel_size=3, activation="relu", strides=2, padding="valid"),
-            layers.BatchNormalization()
-        ])
+        self.deconv1 = layers.Conv2DTranspose(filters=256, kernel_size=3, activation="relu", strides=2, padding="same")
+        self.bn4 = layers.BatchNormalization()
+
+        self.deconv2 = layers.Conv2DTranspose(filters=128, kernel_size=3, activation="relu", strides=1, padding="same")
+        self.bn5 = layers.BatchNormalization()
+
+        self.deconv3 = layers.Conv2DTranspose(filters=128, kernel_size=3, activation="relu", strides=2, padding="valid")
+        self.bn6 = layers.BatchNormalization()
+
+        self.deconv4 = layers.Conv2DTranspose(filters=64, kernel_size=3, activation="relu", strides=1, padding="valid")
+        self.bn7 = layers.BatchNormalization()
+
+        self.deconv5 = layers.Conv2DTranspose(filters=64, kernel_size=3, activation="relu", strides=2, padding="valid")
+        self.bn8 = layers.BatchNormalization()
+
         self.deconv6 = layers.Conv2DTranspose(filters=1, kernel_size=2, activation="sigmoid", padding="valid")
 
     def call(self, inputs, training=None, mask=None):
-        """
-        Executes a forward pass on the decoder.
-
-        :param inputs: Input data to the decoder.
-        :param training: Boolean flag indicating whether the model is in training mode.
-        :param mask: Mask tensor.
-        :return: Output data generated by the decoder.
-        """
         x = self.dense1(inputs)
+        x = self.bn1(x)
         x = self.dense2(x)
+        x = self.bn2(x)
         x = self.dense3(x)
+        x = self.bn3(x)
         x = self.reshape(x)
         x = self.deconv1(x)
+        x = self.bn4(x)
         x = self.deconv2(x)
+        x = self.bn5(x)
         x = self.deconv3(x)
+        x = self.bn6(x)
         x = self.deconv4(x)
+        x = self.bn7(x)
         x = self.deconv5(x)
+        x = self.bn8(x)
         decoder_outputs = self.deconv6(x)
         return decoder_outputs
 
@@ -520,9 +421,9 @@ if __name__ == '__main__':
     x_test = x_test[:500]
     y_test = y_test[:500]
 
-    # Expand dimensions to (None, 40, 40, 1)
-    x_train = np.expand_dims(x_train, -1)
-    x_test = np.expand_dims(x_test, -1)
+    # Expand dimensions to (None, 40, 40, 1) and turn to float32 data type
+    x_train = np.expand_dims(x_train, -1).astype("float32")
+    x_test = np.expand_dims(x_test, -1).astype("float32")
 
     # Print data shapes
     print("x_train shape:", x_train.shape)
@@ -531,25 +432,36 @@ if __name__ == '__main__':
     print("y_test shape:", y_test.shape)
 
     # Normalization
-    x_train = x_train.astype("float32")
-    x_test = x_test.astype("float32")
     x_train = (x_train - np.min(x_train)) / (np.max(x_train) - np.min(x_train))
     x_test = (x_test - np.min(x_test)) / (np.max(x_test) - np.min(x_test))
 
-    # Compiling the VAE
-    latent_dimension = 25  # Longo's paper
-    encoder = Encoder(latent_dimension, (40, 40, 1))
-    decoder = Decoder()
-    vae = VAE(encoder, decoder)
-    vae.compile(Adam(learning_rate=0.001))
+    # Grid search
+    latent_dimension = 25
+    param_grid = {
+        'epochs': [100, 200, 300, 400, 500, 600, 700],
+        'l_rate': [0.001, 0.005, 0.009, 0.01, 0.05, 0.09, 0.1, 0.5, 0.9],
+        'batch_size': [32, 64, 128, 256]}
+    mae_scorer = make_scorer(flat_mae, greater_is_better=False)
+    grid = GridSearchCV(
+        VAEWrapper(encoder=Encoder(latent_dimension), decoder=Decoder()),
+        param_grid, scoring=mae_scorer, cv=5, refit=False
+    )
+    grid.fit(x_train, x_train)
 
-    # Training
+    # Refit
+    print("Refitting on:", grid.best_params_)
+    best_epochs = grid.best_params_["epochs"]
+    best_l_rate = grid.best_params_["l_rate"]
+    best_batch_size = grid.best_params_["batch_size"]
+
     x_train, x_val, y_train, y_val = train_test_split(x_train, y_train, test_size=0.2)
     print("x_val shape:", x_val.shape)
     print("y_val shape:", y_val.shape)
-    epochs = 200
-    batch_size = 128
-    history = vae.fit(x_train, epochs=epochs, batch_size=batch_size, validation_data=(x_val,))
+    encoder = Encoder(latent_dimension)
+    decoder = Decoder()
+    vae = VAE(encoder, decoder, best_epochs, best_l_rate, best_batch_size)
+    vae.compile(Adam(best_l_rate))
+    history = vae.fit(x_train, x_train, best_batch_size, best_epochs, validation_data=(x_val, x_val))
 
     # Plot learning curves
     plot_metric(history, "loss")
@@ -566,8 +478,8 @@ if __name__ == '__main__':
     plt.imshow(original_image, cmap="gray")
     plt.show()
 
-    plt.title(f"Reconstructed image {image_index}, latent_dim = {latent_dimension}, epochs = {epochs}, "
-              f"batch_size = {batch_size}")
+    plt.title(f"Reconstructed image {image_index}, latent_dim = {latent_dimension}, epochs = {best_epochs}, "
+              f"batch_size = {best_batch_size}")
     x_test_reconstructed = vae.predict(x_test)
     reconstructed_image = x_test_reconstructed[image_index]
     plt.imshow(reconstructed_image, cmap="gray")
