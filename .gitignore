@@ -160,9 +160,8 @@ cython_debug/
 #.idea/
 
 data_original/
-plots/
 events/
-topomaps/
-topomaps_short/
-labels/
 images/
+labels/
+plots/
+topomaps/
