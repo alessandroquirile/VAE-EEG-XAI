@@ -214,6 +214,69 @@ def plot_metric(history, metric):
     plt.show()
 
 
+def reduce_size(x, y, new_size):
+    return x[:new_size], y[:new_size]
+
+
+def expand(x):
+    return np.expand_dims(x, -1).astype("float32")
+
+
+def normalize(x):
+    return (x - np.min(x)) / (np.max(x) - np.min(x))
+
+
+def grid_search_vae(x_train, latent_dimension):
+    param_grid = {
+        'epochs': [100, 200, 300, 400, 500, 600, 700],
+        'l_rate': [0.001, 0.005, 0.009, 0.01, 0.05, 0.09, 0.1, 0.5, 0.9],
+        'batch_size': [32, 64, 128, 256]
+    }
+    print("\nI am tuning the hyper parameters:", param_grid.keys())
+    mae_scorer = make_scorer(flat_mae, greater_is_better=False)
+    grid = GridSearchCV(
+        VAEWrapper(encoder=Encoder(latent_dimension), decoder=Decoder()),
+        param_grid, scoring=mae_scorer, cv=5, refit=False
+    )
+    grid.fit(x_train, x_train)
+    return grid
+
+
+def refit(fitted_grid, x_train, y_train, latent_dimension):
+    print("\nRefitting based on:", fitted_grid.best_params_)
+
+    best_epochs = fitted_grid.best_params_["epochs"]
+    best_l_rate = fitted_grid.best_params_["l_rate"]
+    best_batch_size = fitted_grid.best_params_["batch_size"]
+
+    x_train, x_val, y_train, y_val = train_test_split(x_train, y_train, test_size=0.2)
+    print("x_val shape:", x_val.shape)
+    print("y_val shape:", y_val.shape)
+
+    encoder = Encoder(latent_dimension)
+    decoder = Decoder()
+    vae = VAE(encoder, decoder, best_epochs, best_l_rate, best_batch_size)
+    vae.compile(Adam(best_l_rate))
+
+    history = vae.fit(x_train, x_train, best_batch_size, best_epochs, validation_data=(x_val, x_val))
+    return history, vae
+
+
+def visually_check_reconstruction_skill(vae, x_test):
+    image_index = 5
+    plt.title(f"Original image {image_index}")
+    original_image = x_test[image_index]
+    plt.imshow(original_image, cmap="gray")
+    plt.show()
+
+    plt.title(f"Reconstructed image {image_index}, latent_dim = {latent_dimension}, batch_size = {vae.batch_size},"
+              f"epochs = {vae.epochs}, l_rate = {vae.l_rate}")
+    x_test_reconstructed = vae.predict(x_test)
+    reconstructed_image = x_test_reconstructed[image_index]
+    plt.imshow(reconstructed_image, cmap="gray")
+    plt.show()
+
+
 class VAEWrapper:
     def __init__(self, **kwargs):
         self.vae = VAE(**kwargs)
@@ -416,14 +479,13 @@ if __name__ == '__main__':
 
     # I am reducing the size of data set for speed purposes
     # Remove this in production
-    x_train = x_train[:500]
-    y_train = y_train[:500]
-    x_test = x_test[:500]
-    y_test = y_test[:500]
+    new_size = 500
+    x_train, y_train = reduce_size(x_train, y_train, new_size)
+    x_test, y_test = reduce_size(x_test, y_test, new_size)
 
-    # Expand dimensions to (None, 40, 40, 1) and turn to float32 data type
-    x_train = np.expand_dims(x_train, -1).astype("float32")
-    x_test = np.expand_dims(x_test, -1).astype("float32")
+    # Expand dimensions to (None, 40, 40, 1)
+    x_train = expand(x_train)
+    x_test = expand(x_test)
 
     # Print data shapes
     print("x_train shape:", x_train.shape)
@@ -432,36 +494,15 @@ if __name__ == '__main__':
     print("y_test shape:", y_test.shape)
 
     # Normalization
-    x_train = (x_train - np.min(x_train)) / (np.max(x_train) - np.min(x_train))
-    x_test = (x_test - np.min(x_test)) / (np.max(x_test) - np.min(x_test))
+    x_train = normalize(x_train)
+    x_test = normalize(x_test)
 
     # Grid search
-    latent_dimension = 25
-    param_grid = {
-        'epochs': [100, 200, 300, 400, 500, 600, 700],
-        'l_rate': [0.001, 0.005, 0.009, 0.01, 0.05, 0.09, 0.1, 0.5, 0.9],
-        'batch_size': [32, 64, 128, 256]}
-    mae_scorer = make_scorer(flat_mae, greater_is_better=False)
-    grid = GridSearchCV(
-        VAEWrapper(encoder=Encoder(latent_dimension), decoder=Decoder()),
-        param_grid, scoring=mae_scorer, cv=5, refit=False
-    )
-    grid.fit(x_train, x_train)
+    latent_dimension = 25  # Longo's paper
+    fitted_grid = grid_search_vae(x_train, latent_dimension)
 
     # Refit
-    print("Refitting on:", grid.best_params_)
-    best_epochs = grid.best_params_["epochs"]
-    best_l_rate = grid.best_params_["l_rate"]
-    best_batch_size = grid.best_params_["batch_size"]
-
-    x_train, x_val, y_train, y_val = train_test_split(x_train, y_train, test_size=0.2)
-    print("x_val shape:", x_val.shape)
-    print("y_val shape:", y_val.shape)
-    encoder = Encoder(latent_dimension)
-    decoder = Decoder()
-    vae = VAE(encoder, decoder, best_epochs, best_l_rate, best_batch_size)
-    vae.compile(Adam(best_l_rate))
-    history = vae.fit(x_train, x_train, best_batch_size, best_epochs, validation_data=(x_val, x_val))
+    history, vae = refit(fitted_grid, x_train, y_train, latent_dimension)
 
     # Plot learning curves
     plot_metric(history, "loss")
@@ -472,15 +513,4 @@ if __name__ == '__main__':
     # plot_label_clusters(vae, x_train, y_train)
 
     # Check reconstruction skills against a random test sample
-    image_index = 5
-    plt.title(f"Original image {image_index}")
-    original_image = x_test[image_index]
-    plt.imshow(original_image, cmap="gray")
-    plt.show()
-
-    plt.title(f"Reconstructed image {image_index}, latent_dim = {latent_dimension}, epochs = {best_epochs}, "
-              f"batch_size = {best_batch_size}")
-    x_test_reconstructed = vae.predict(x_test)
-    reconstructed_image = x_test_reconstructed[image_index]
-    plt.imshow(reconstructed_image, cmap="gray")
-    plt.show()
+    visually_check_reconstruction_skill(vae, x_test)
