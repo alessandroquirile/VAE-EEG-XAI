@@ -16,15 +16,6 @@ from tqdm import tqdm
 
 
 def load_data(topomaps_folder: str, labels_folder: str, test_size, anomaly_detection):
-    """
-    Load data returning training set and test set
-
-    :param topomaps_folder: (str) Path to the folder containing topomaps
-    :param labels_folder: (str) Path to the folder containing labels
-    :param test_size: Test set size
-    :return: x_train, x_test, y_train, y_test
-    """
-
     x, y = _create_dataset(topomaps_folder, labels_folder)
 
     print(f"Splitting data set into training set {1 - test_size} and test set {test_size}...")
@@ -55,12 +46,6 @@ def load_data(topomaps_folder: str, labels_folder: str, test_size, anomaly_detec
 
 
 def _create_dataset(topomaps_folder, labels_folder):
-    """
-    Creates a data set
-    :param topomaps_folder: (str) Path to the folder containing topomaps
-    :param labels_folder: (str) Path to the folder containing labels
-    :return: data and labels
-    """
     topomaps_files = os.listdir(topomaps_folder)
     labels_files = os.listdir(labels_folder)
 
@@ -114,7 +99,7 @@ def plot_latent_space(vae, data, points_to_sample=30, figsize=15):
     decoder model based on a specific location in the latent space.
 
     :param vae: The trained VAE model.
-    :param data: Data to have a latent representation of. Shape should be (num_samples, 32, 32).
+    :param data: Data to have a latent representation of. Shape should be (num_samples, 40, 40).
     :param points_to_sample: The number of points to sample along each axis of the plot. Default is 30.
     :param figsize: The size of the figure (width and height) in inches. Default is 15.
     :return: None (displays the plot).
@@ -177,7 +162,7 @@ def plot_label_clusters(vae, data, labels):
     Plots a t-SNE projection of the given data, with labels represented by different colors.
 
     :param vae: The trained VAE (Variational Autoencoder) model.
-    :param data: Input data of shape (num_samples, 32, 32).
+    :param data: Input data of shape (num_samples, 40, 40).
     :param labels: Array of labels corresponding to the data of shape (num_samples,).
     :return: None (displays the plot)
     """
@@ -234,6 +219,7 @@ def grid_search_vae(x_train, latent_dimension):
     }
     print("\nI am tuning the hyper parameters:", param_grid.keys())
     mae_scorer = make_scorer(flat_mae, greater_is_better=False)
+    # refit=True gives problems when using GridSearchCV on non-sklearn models
     grid = GridSearchCV(
         VAEWrapper(encoder=Encoder(latent_dimension), decoder=Decoder()),
         param_grid, scoring=mae_scorer, cv=5, refit=False
@@ -243,6 +229,8 @@ def grid_search_vae(x_train, latent_dimension):
 
 
 def refit(fitted_grid, x_train, y_train, latent_dimension):
+    # Since refit=True gives problems when using GridSearchCV on non-sklearn models
+    # I refitted the best model manually
     print("\nRefitting based on:", fitted_grid.best_params_)
 
     best_epochs = fitted_grid.best_params_["epochs"]
