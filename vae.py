@@ -1,12 +1,16 @@
 import os
+import pickle
 
 import numpy as np
 import pandas as pd
 import seaborn as sns
 import tensorflow as tf
-from keras import layers
+from keras.initializers import he_uniform
+from keras.layers import Conv2DTranspose, BatchNormalization, Reshape, Dense, Conv2D, Flatten
 from keras.optimizers.legacy import Adam
+from keras.src.callbacks import EarlyStopping
 from matplotlib import pyplot as plt
+from skimage.metrics import structural_similarity as ssim
 from sklearn.base import BaseEstimator
 from sklearn.manifold import TSNE
 from sklearn.metrics import mean_absolute_error, make_scorer
@@ -20,6 +24,8 @@ def load_data(topomaps_folder: str, labels_folder: str, test_size, anomaly_detec
 
     print(f"Splitting data set into training set {1 - test_size} and test set {test_size}...")
 
+    seed = 42
+
     if anomaly_detection:
         print("For anomaly detection")
         # Training set only contains images whose label is 0 for anomaly detection
@@ -31,7 +37,7 @@ def load_data(topomaps_folder: str, labels_folder: str, test_size, anomaly_detec
         remaining_indices = np.where(y != 0)[0]
         x_remaining = x[remaining_indices]
         y_remaining = y[remaining_indices]
-        _, x_test, _, y_test = train_test_split(x_remaining, y_remaining, test_size=test_size)
+        _, x_test, _, y_test = train_test_split(x_remaining, y_remaining, test_size=test_size, random_state=seed)
 
         # Check dataset for anomaly detection task
         y_train_only_contains_label_0 = all(y_train) == 0
@@ -40,7 +46,7 @@ def load_data(topomaps_folder: str, labels_folder: str, test_size, anomaly_detec
             raise Exception("Data was not loaded successfully")
     else:
         print("For latent space analysis")
-        x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=test_size)
+        x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=test_size, random_state=seed)
 
     return x_train, x_test, y_train, y_test
 
@@ -74,6 +80,10 @@ def _create_dataset(topomaps_folder, labels_folder):
 
 def flat_mae(x, y):
     return mean_absolute_error(y.flatten(), x.flatten())
+
+
+def my_ssim(im1, im2):
+    return ssim(im1, im2, data_range=1, channel_axis=-1)
 
 
 def sample(z_mean, z_log_var):
@@ -213,29 +223,35 @@ def normalize(x):
 
 def grid_search_vae(x_train, latent_dimension):
     param_grid = {
-        'epochs': [100, 200, 300, 400, 500, 600, 700],
-        'l_rate': [0.001, 0.005, 0.009, 0.01, 0.05, 0.09, 0.1, 0.5, 0.9],
-        'batch_size': [32, 64, 128, 256]
+        'epochs': [500, 600, 700, 800, 900, 1000],
+        'l_rate': [10 ** -4, 10 ** -5, 10 ** -6, 10 ** -7],
+        'batch_size': [32, 64, 128, 256],
+        'patience': [20, 30, 40, 50]
     }
+
     print("\nI am tuning the hyper parameters:", param_grid.keys())
-    mae_scorer = make_scorer(flat_mae, greater_is_better=False)
-    # refit=True gives problems when using GridSearchCV on non-sklearn models
+
+    # If we use multi-metric evaluation, and refit=False, we cannot access grid.best_params_
+    # refit=True raises problems with TensorFlow models. So let's use single-metric evaluation (ssim only)
+    # mae_scorer = make_scorer(flat_mae, greater_is_better=False)
+    ssim_scorer = make_scorer(my_ssim, greater_is_better=True)
+
     grid = GridSearchCV(
         VAEWrapper(encoder=Encoder(latent_dimension), decoder=Decoder()),
-        param_grid, scoring=mae_scorer, cv=5, refit=False
+        param_grid, scoring=ssim_scorer, cv=5, refit=False
     )
+
     grid.fit(x_train, x_train)
     return grid
 
 
 def refit(fitted_grid, x_train, y_train, latent_dimension):
-    # Since refit=True gives problems when using GridSearchCV on non-sklearn models
-    # I refitted the best model manually
     print("\nRefitting based on:", fitted_grid.best_params_)
 
     best_epochs = fitted_grid.best_params_["epochs"]
     best_l_rate = fitted_grid.best_params_["l_rate"]
     best_batch_size = fitted_grid.best_params_["batch_size"]
+    best_patience = fitted_grid.best_params_["patience"]
 
     x_train, x_val, y_train, y_val = train_test_split(x_train, y_train, test_size=0.2)
     print("x_val shape:", x_val.shape)
@@ -246,7 +262,9 @@ def refit(fitted_grid, x_train, y_train, latent_dimension):
     vae = VAE(encoder, decoder, best_epochs, best_l_rate, best_batch_size)
     vae.compile(Adam(best_l_rate))
 
-    history = vae.fit(x_train, x_train, best_batch_size, best_epochs, validation_data=(x_val, x_val))
+    early_stopping = EarlyStopping("val_loss", patience=best_patience)
+    history = vae.fit(x_train, x_train, best_batch_size, best_epochs,
+                      validation_data=(x_val, x_val), callbacks=[early_stopping])
     return history, vae
 
 
@@ -258,7 +276,7 @@ def visually_check_reconstruction_skill(vae, x_test):
     plt.show()
 
     plt.title(f"Reconstructed image {image_index}, latent_dim = {latent_dimension}, batch_size = {vae.batch_size},"
-              f"epochs = {vae.epochs}, l_rate = {vae.l_rate}")
+              f"epochs = {vae.epochs}, l_rate = {vae.l_rate}, patience = {vae.patience}")
     x_test_reconstructed = vae.predict(x_test)
     reconstructed_image = x_test_reconstructed[image_index]
     plt.imshow(reconstructed_image, cmap="gray")
@@ -284,13 +302,14 @@ class VAEWrapper:
 
 
 class VAE(keras.Model, BaseEstimator):
-    def __init__(self, encoder, decoder, epochs=None, l_rate=None, batch_size=None, **kwargs):
+    def __init__(self, encoder, decoder, epochs=None, l_rate=None, batch_size=None, patience=None, **kwargs):
         super().__init__(**kwargs)
         self.encoder = encoder
         self.decoder = decoder
         self.epochs = epochs  # For grid search
         self.l_rate = l_rate  # For grid search
         self.batch_size = batch_size  # For grid search
+        self.patience = patience  # For grid search
         self.total_loss_tracker = keras.metrics.Mean(name="total_loss")
         self.reconstruction_loss_tracker = keras.metrics.Mean(name="reconstruction_loss")
         self.kl_loss_tracker = keras.metrics.Mean(name="kl_loss")
@@ -376,20 +395,25 @@ class Encoder(keras.layers.Layer):
         super(Encoder, self).__init__()
         self.latent_dim = latent_dimension
 
-        self.conv1 = layers.Conv2D(filters=64, kernel_size=3, activation="relu", strides=2, padding="same")
-        self.bn1 = layers.BatchNormalization()
+        seed = 42
 
-        self.conv2 = layers.Conv2D(filters=128, kernel_size=3, activation="relu", strides=2, padding="same")
-        self.bn2 = layers.BatchNormalization()
+        self.conv1 = Conv2D(filters=64, kernel_size=3, activation="relu", strides=2, padding="same",
+                            kernel_initializer=he_uniform(seed))
+        self.bn1 = BatchNormalization()
 
-        self.conv3 = layers.Conv2D(filters=256, kernel_size=3, activation="relu", strides=2, padding="same")
-        self.bn3 = layers.BatchNormalization()
+        self.conv2 = Conv2D(filters=128, kernel_size=3, activation="relu", strides=2, padding="same",
+                            kernel_initializer=he_uniform(seed))
+        self.bn2 = BatchNormalization()
 
-        self.flatten = layers.Flatten()
-        self.dense = layers.Dense(units=100, activation="relu")
+        self.conv3 = Conv2D(filters=256, kernel_size=3, activation="relu", strides=2, padding="same",
+                            kernel_initializer=he_uniform(seed))
+        self.bn3 = BatchNormalization()
 
-        self.z_mean = layers.Dense(latent_dimension, name="z_mean")
-        self.z_log_var = layers.Dense(latent_dimension, name="z_log_var")
+        self.flatten = Flatten()
+        self.dense = Dense(units=100, activation="relu")
+
+        self.z_mean = Dense(latent_dimension, name="z_mean")
+        self.z_log_var = Dense(latent_dimension, name="z_log_var")
 
         self.sampling = sample
 
@@ -412,32 +436,40 @@ class Encoder(keras.layers.Layer):
 class Decoder(keras.layers.Layer):
     def __init__(self):
         super(Decoder, self).__init__()
-        self.dense1 = layers.Dense(units=4096, activation="relu")
-        self.bn1 = layers.BatchNormalization()
+        self.dense1 = Dense(units=4096, activation="relu")
+        self.bn1 = BatchNormalization()
 
-        self.dense2 = layers.Dense(units=1024, activation="relu")
-        self.bn2 = layers.BatchNormalization()
+        self.dense2 = Dense(units=1024, activation="relu")
+        self.bn2 = BatchNormalization()
 
-        self.dense3 = layers.Dense(units=4096, activation="relu")
-        self.bn3 = layers.BatchNormalization()
+        self.dense3 = Dense(units=4096, activation="relu")
+        self.bn3 = BatchNormalization()
 
-        self.reshape = layers.Reshape((4, 4, 256))
-        self.deconv1 = layers.Conv2DTranspose(filters=256, kernel_size=3, activation="relu", strides=2, padding="same")
-        self.bn4 = layers.BatchNormalization()
+        seed = 42
 
-        self.deconv2 = layers.Conv2DTranspose(filters=128, kernel_size=3, activation="relu", strides=1, padding="same")
-        self.bn5 = layers.BatchNormalization()
+        self.reshape = Reshape((4, 4, 256))
+        self.deconv1 = Conv2DTranspose(filters=256, kernel_size=3, activation="relu", strides=2, padding="same",
+                                       kernel_initializer=he_uniform(seed))
+        self.bn4 = BatchNormalization()
 
-        self.deconv3 = layers.Conv2DTranspose(filters=128, kernel_size=3, activation="relu", strides=2, padding="valid")
-        self.bn6 = layers.BatchNormalization()
+        self.deconv2 = Conv2DTranspose(filters=128, kernel_size=3, activation="relu", strides=1, padding="same",
+                                       kernel_initializer=he_uniform(seed))
+        self.bn5 = BatchNormalization()
 
-        self.deconv4 = layers.Conv2DTranspose(filters=64, kernel_size=3, activation="relu", strides=1, padding="valid")
-        self.bn7 = layers.BatchNormalization()
+        self.deconv3 = Conv2DTranspose(filters=128, kernel_size=3, activation="relu", strides=2, padding="valid",
+                                       kernel_initializer=he_uniform(seed))
+        self.bn6 = BatchNormalization()
 
-        self.deconv5 = layers.Conv2DTranspose(filters=64, kernel_size=3, activation="relu", strides=2, padding="valid")
-        self.bn8 = layers.BatchNormalization()
+        self.deconv4 = Conv2DTranspose(filters=64, kernel_size=3, activation="relu", strides=1, padding="valid",
+                                       kernel_initializer=he_uniform(seed))
+        self.bn7 = BatchNormalization()
 
-        self.deconv6 = layers.Conv2DTranspose(filters=1, kernel_size=2, activation="sigmoid", padding="valid")
+        self.deconv5 = Conv2DTranspose(filters=64, kernel_size=3, activation="relu", strides=2, padding="valid",
+                                       kernel_initializer=he_uniform(seed))
+        self.bn8 = BatchNormalization()
+
+        self.deconv6 = Conv2DTranspose(filters=1, kernel_size=2, activation="sigmoid", padding="valid",
+                                       kernel_initializer=he_uniform(seed))
 
     def call(self, inputs, training=None, mask=None):
         x = self.dense1(inputs)
@@ -461,16 +493,22 @@ class Decoder(keras.layers.Layer):
         return decoder_outputs
 
 
+def save(history):
+    with open('history.pickle', 'wb') as file_pi:
+        pickle.dump(history.history, file_pi)
+
+
 if __name__ == '__main__':
     # Load data
     x_train, x_test, y_train, y_test = load_data("topomaps", "labels", 0.2, False)
 
     # I am reducing the size of data set for speed purposes. For tests only
-    # new_size = 500
+    # new_size = 200
     # x_train, y_train = reduce_size(x_train, y_train, new_size)
     # x_test, y_test = reduce_size(x_test, y_test, new_size)
 
     # Expand dimensions to (None, 40, 40, 1)
+    # This is because VAE is currently working with 4d tensors
     x_train = expand(x_train)
     x_test = expand(x_test)
 
@@ -486,18 +524,18 @@ if __name__ == '__main__':
 
     # Grid search
     latent_dimension = 25  # Longo's paper
-    fitted_grid = grid_search_vae(x_train, latent_dimension)
+    grid = grid_search_vae(x_train, latent_dimension)
 
-    # Refit
-    history, vae = refit(fitted_grid, x_train, y_train, latent_dimension)
+    # Manually refit, since refit=True raises problems with TensorFlow models
+    history, vae = refit(grid, x_train, y_train, latent_dimension)
+    save(history)
+    vae.save_weights("checkpoints/vae")
 
-    # Plot learning curves
-    plot_metric(history, "loss")
-    plot_metric(history, "reconstruction_loss")
-    plot_metric(history, "kl_loss")
+    # plot_metric(history, "loss")
+    # plot_metric(history, "reconstruction_loss")
+    # plot_metric(history, "kl_loss")
 
     # plot_latent_space(vae, x_train)
     # plot_label_clusters(vae, x_train, y_train)
 
-    # Check reconstruction skills against a random test sample
-    visually_check_reconstruction_skill(vae, x_test)
+    # visually_check_reconstruction_skill(vae, x_test)
