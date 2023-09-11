@@ -498,7 +498,34 @@ def save(history):
         pickle.dump(history.history, file_pi)
 
 
+def set_server_config():
+    os.environ['CUDA_VISIBLE_DEVICES'] = '1'  # "0" first GPU
+    # "1" second GPU (se c'è altrimenti usa la CPU)
+    # "-1" CPU
+    import tensorflow as tf  # importare dopo aver settato il device
+    gpus = tf.config.list_physical_devices('GPU')
+    if gpus:
+        try:
+            # Currently, memory growth needs to be the same across GPUs
+            for gpu in gpus:
+                tf.config.experimental.set_memory_growth(gpu, True)
+            logical_gpus = tf.config.list_logical_devices('GPU')
+            print(len(gpus), "Physical GPUs,", len(logical_gpus), "Logical GPUs")
+        except RuntimeError as e:
+            # Memory growth must be set before GPUs have been initialized
+            print(e)
+
+    tf.compat.v1.disable_eager_execution()
+    tf.executing_eagerly()
+    tf.compat.v1.global_variables()
+    tf.executing_eagerly()
+
+
 if __name__ == '__main__':
+
+    # For remote server
+    # set_server_config()
+
     # Load data
     x_train, x_test, y_train, y_test = load_data("topomaps", "labels", 0.2, False)
 
