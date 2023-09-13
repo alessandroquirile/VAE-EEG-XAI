@@ -223,13 +223,13 @@ def normalize(x):
 
 def grid_search_vae(x_train, latent_dimension):
     param_grid = {
-        'epochs': [500, 600, 700, 800, 900, 1000],
+        'epochs': [2500],
         'l_rate': [10 ** -4, 10 ** -5, 10 ** -6, 10 ** -7],
         'batch_size': [32, 64, 128, 256],
-        'patience': [20, 30, 40, 50]
+        'patience': [30]
     }
 
-    print("\nI am tuning the hyper parameters:", param_grid.keys())
+    print("\nI am tuning the hyper parameters:", param_grid)
 
     # If we use multi-metric evaluation, and refit=False, we cannot access grid.best_params_
     # refit=True raises problems with TensorFlow models. So let's use single-metric evaluation (ssim only)
@@ -525,6 +525,8 @@ if __name__ == '__main__':
 
     # For remote server
     # set_server_config()
+
+    print("TensorFlow GPU usage:", tf.config.list_physical_devices('GPU'))
 
     # Load data
     x_train, x_test, y_train, y_test = load_data("topomaps", "labels", 0.2, False)
