@@ -175,6 +175,9 @@ if __name__ == '__main__':
     latent_dim = 25  # by Longo's paper
     epochs = 2500
     batch_size = 64
+    val_size = 0.2
+    patience = 30
+    l_rate = 10**-6
 
     # (40, 40, 1)
     img_width = x_train.shape[1]
@@ -237,14 +240,12 @@ if __name__ == '__main__':
 
     # VAE
     vae = Model(encoder_input, decoder(encoder(encoder_input)))
-    vae.compile(optimizer=tf.keras.optimizers.legacy.Adam(learning_rate=1e-6), loss=kl_reconstruction_loss,
+    vae.compile(optimizer=tf.keras.optimizers.legacy.Adam(learning_rate=l_rate), loss=kl_reconstruction_loss,
                 metrics=[recon_loss, latent_loss])
 
     # Training
-    val_size = 0.2
-    patience = 30
     print(f"latent_dim {latent_dim}, epochs {epochs}, batch_size {batch_size}, val_size is {val_size} of training "
-          f"data, patience {patience}")
+          f"data, patience {patience}, l_rate {l_rate}")
     early_stopping = EarlyStopping(monitor='val_loss', patience=patience, mode='min')  # Valutare se verbose=1
     x_train, x_val, _, _ = train_test_split(x_train, y_train, test_size=val_size, random_state=seed)
     history = vae.fit(
