@@ -262,9 +262,9 @@ def refit(fitted_grid, x_train, y_train, latent_dimension):
     vae = VAE(encoder, decoder, best_epochs, best_l_rate, best_batch_size)
     vae.compile(Adam(best_l_rate))
 
-    early_stopping = EarlyStopping("val_loss", patience=best_patience)
+    early_stopping = EarlyStopping("val_loss", patience=best_patience, verbose=1)
     history = vae.fit(x_train, x_train, best_batch_size, best_epochs,
-                      validation_data=(x_val, x_val), callbacks=[early_stopping])
+                      validation_data=(x_val, x_val), callbacks=[early_stopping], verbose=2)
     return history, vae
 
 
@@ -532,9 +532,9 @@ if __name__ == '__main__':
     x_train, x_test, y_train, y_test = load_data("topomaps", "labels", 0.2, False)
 
     # I am reducing the size of data set for speed purposes. For tests only
-    # new_size = 200
-    # x_train, y_train = reduce_size(x_train, y_train, new_size)
-    # x_test, y_test = reduce_size(x_test, y_test, new_size)
+    new_size = 200
+    x_train, y_train = reduce_size(x_train, y_train, new_size)
+    x_test, y_test = reduce_size(x_test, y_test, new_size)
 
     # Expand dimensions to (None, 40, 40, 1)
     # This is because VAE is currently working with 4d tensors
