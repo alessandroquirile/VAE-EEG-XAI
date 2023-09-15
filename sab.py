@@ -246,7 +246,7 @@ if __name__ == '__main__':
     # Training
     print(f"latent_dim {latent_dim}, epochs {epochs}, batch_size {batch_size}, val_size is {val_size} of training "
           f"data, patience {patience}, l_rate {l_rate}")
-    early_stopping = EarlyStopping(monitor='val_loss', patience=patience, mode='min')  # Valutare se verbose=1
+    early_stopping = EarlyStopping(monitor='val_loss', patience=patience, mode='min', verbose=1)
     x_train, x_val, _, _ = train_test_split(x_train, y_train, test_size=val_size, random_state=seed)
     history = vae.fit(
         x_train,
@@ -254,7 +254,8 @@ if __name__ == '__main__':
         batch_size=batch_size,
         epochs=epochs,
         validation_data=(x_val, x_val),
-        callbacks=[early_stopping]
+        callbacks=[early_stopping],
+        verbose=2
     )
     save(history)
     vae.save_weights("checkpoints/vae")
