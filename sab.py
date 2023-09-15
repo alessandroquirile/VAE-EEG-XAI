@@ -174,7 +174,7 @@ if __name__ == '__main__':
     # Hyperparameters
     latent_dim = 25  # by Longo's paper
     epochs = 2500
-    batch_size = 128
+    batch_size = 64
 
     # (40, 40, 1)
     img_width = x_train.shape[1]
@@ -242,8 +242,10 @@ if __name__ == '__main__':
 
     # Training
     val_size = 0.2
-    print(f"latent_dim {latent_dim}, epochs {epochs}, batch_size {batch_size}, val_size is {val_size} of training data")
-    early_stopping = EarlyStopping(monitor='val_loss', patience=30, mode='min', verbose=1)
+    patience = 30
+    print(f"latent_dim {latent_dim}, epochs {epochs}, batch_size {batch_size}, val_size is {val_size} of training "
+          f"data, patience {patience}")
+    early_stopping = EarlyStopping(monitor='val_loss', patience=patience, mode='min')  # Valutare se verbose=1
     x_train, x_val, _, _ = train_test_split(x_train, y_train, test_size=val_size, random_state=seed)
     history = vae.fit(
         x_train,
