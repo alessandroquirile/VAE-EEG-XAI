@@ -1,5 +1,7 @@
+import gc
 import os
 import pickle
+from itertools import product
 
 import numpy as np
 import pandas as pd
@@ -14,7 +16,7 @@ from skimage.metrics import structural_similarity as ssim
 from sklearn.base import BaseEstimator
 from sklearn.manifold import TSNE
 from sklearn.metrics import mean_absolute_error, make_scorer
-from sklearn.model_selection import train_test_split, GridSearchCV
+from sklearn.model_selection import train_test_split, GridSearchCV, KFold
 from tensorflow import keras
 from tqdm import tqdm
 
@@ -244,6 +246,21 @@ def grid_search_vae(x_train, latent_dimension):
     grid.fit(x_train, x_train)
     return grid
 
+def custom_grid_search(x_train, latent_dimensions):
+    param_grid = {
+        'epochs': [2500],
+        'l_rate': [10 ** -4, 10 ** -5, 10 ** -6, 10 ** -7],
+        'batch_size': [32, 64, 128, 256],
+        'patience': [30]
+    }
+
+    print("\nI am tuning the hyper parameters:", param_grid)
+
+    grid_search = CustomGridSearchCV(param_grid)
+    grid_search.fit(x_train, latent_dimensions)
+
+    return grid_search
+
 
 def refit(fitted_grid, x_train, y_train, latent_dimension):
     print("\nRefitting based on:", fitted_grid.best_params_)
@@ -281,6 +298,56 @@ def visually_check_reconstruction_skill(vae, x_test):
     reconstructed_image = x_test_reconstructed[image_index]
     plt.imshow(reconstructed_image, cmap="gray")
     plt.show()
+
+class CustomGridSearchCV:
+    def __init__(self, param_grid):
+        self.param_grid = param_grid
+        self.best_params_ = {}
+        self.best_score_ = None
+        self.grid_ = []
+
+    def fit(self, x_train, latent_dimensions):
+        ssim_scorer = my_ssim
+        param_combinations = product(*self.param_grid.values())
+
+        for params in param_combinations:
+            params_dict = dict(zip(self.param_grid.keys(), params))
+
+            cv = KFold(n_splits=5, shuffle=True, random_state=42)
+            scores = []
+
+            for train_idx, val_idx in cv.split(x_train):
+                x_train_fold, x_val_fold = x_train[train_idx], x_train[val_idx]
+
+                encoder = Encoder(latent_dimensions)
+                decoder = Decoder()
+                vae = VAE(encoder, decoder, params_dict['epochs'], params_dict['l_rate'], params_dict['batch_size'])
+                vae.compile(Adam(params_dict['l_rate']))
+
+                early_stopping = EarlyStopping("val_loss", patience=params_dict['patience'])
+                vae.fit(x_train_fold, x_train_fold, params_dict['batch_size'], params_dict['epochs'],
+                        validation_data=(x_val_fold, x_val_fold), callbacks=[early_stopping])
+
+                predicted = vae.predict(x_val_fold)
+                score = ssim_scorer(x_val_fold, predicted)
+                scores.append(score)
+
+                # Clear the TensorFlow session to free GPU memory
+                # https://stackoverflow.com/a/52354943/17082611
+                tf.keras.backend.clear_session()
+                del vae
+                gc.collect()
+
+            avg_score = np.mean(scores)
+            params_dict['avg_score'] = avg_score
+            self.grid_.append(params_dict)
+
+            # Update best hyperparameters based on the highest SSIM score
+            if self.best_score_ is None or avg_score > self.best_score_:
+                self.best_score_ = avg_score
+                self.best_params_ = params_dict
+
+        return self
 
 
 class VAEWrapper:
@@ -532,9 +599,9 @@ if __name__ == '__main__':
     x_train, x_test, y_train, y_test = load_data("topomaps", "labels", 0.2, False)
 
     # I am reducing the size of data set for speed purposes. For tests only
-    # new_size = 200
-    # x_train, y_train = reduce_size(x_train, y_train, new_size)
-    # x_test, y_test = reduce_size(x_test, y_test, new_size)
+    new_size = 50
+    x_train, y_train = reduce_size(x_train, y_train, new_size)
+    x_test, y_test = reduce_size(x_test, y_test, new_size)
 
     # Expand dimensions to (None, 40, 40, 1)
     # This is because VAE is currently working with 4d tensors
@@ -552,8 +619,9 @@ if __name__ == '__main__':
     x_test = normalize(x_test)
 
     # Grid search
-    latent_dimension = 25  # Longo's paper
-    grid = grid_search_vae(x_train, latent_dimension)
+    latent_dimension = 25
+    grid = custom_grid_search(x_train, latent_dimension)  # By me
+    # grid = grid_search_vae(x_train, latent_dimension)  # By sklearn
 
     # Manually refit, since refit=True raises problems with TensorFlow models
     history, vae = refit(grid, x_train, y_train, latent_dimension)
