@@ -231,7 +231,7 @@ def grid_search_vae(x_train, latent_dimension):
         'patience': [30]
     }
 
-    print("\nI am tuning the hyper parameters:", param_grid)
+    print("\nGridSearchCV: I am tuning the hyper parameters:", param_grid)
 
     # If we use multi-metric evaluation, and refit=False, we cannot access grid.best_params_
     # refit=True raises problems with TensorFlow models. So let's use single-metric evaluation (ssim only)
@@ -254,7 +254,7 @@ def custom_grid_search(x_train, latent_dimensions):
         'patience': [30]
     }
 
-    print("\nI am tuning the hyper parameters:", param_grid)
+    print("\nCustom grid search: I am tuning the hyper parameters:", param_grid)
 
     grid_search = CustomGridSearchCV(param_grid)
     grid_search.fit(x_train, latent_dimensions)
@@ -335,7 +335,7 @@ class CustomGridSearchCV:
                 # Clear the TensorFlow session to free GPU memory
                 # https://stackoverflow.com/a/52354943/17082611
                 tf.keras.backend.clear_session()
-                del vae
+                del encoder, decoder, vae
                 gc.collect()
 
             avg_score = np.mean(scores)
