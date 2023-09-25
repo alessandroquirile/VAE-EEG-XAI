@@ -10,8 +10,8 @@ if __name__ == '__main__':
     trial = "21"
 
     file_name = subject + "_trial" + str(trial) + ".npy"
-    topomaps = np.load(f"topomaps/{file_name}")
-    labels = np.load(f"labels/{file_name}")
+    topomaps = np.load(f"topomaps_reduced/{file_name}")
+    labels = np.load(f"labels_reduced/{file_name}")
     output_folder = os.path.join("images", subject, trial)
     os.makedirs(output_folder, exist_ok=True)
     file_name_without_extension = os.path.splitext(file_name)[0]

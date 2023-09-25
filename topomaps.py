@@ -52,27 +52,27 @@ if __name__ == '__main__':
     # s01-s22 are the only participants who do have videos
     magic_numbers = {
         "s01.bdf": 105,
-        # "s02.bdf": 160,
-        # "s03.bdf": 100,
-        # "s04.bdf": 150,
-        # "s05.bdf": 150,
-        # "s06.bdf": 150,
-        # "s07.bdf": 110,
-        # "s08.bdf": 150,
-        # "s09.bdf": 150,
-        # "s10.bdf": 110,
-        # "s11.bdf": 110,
-        # "s12.bdf": 150,
-        # "s13.bdf": 110,
-        # "s14.bdf": 110,
-        # "s15.bdf": 150,
-        # "s16.bdf": 105,
-        # "s17.bdf": 150,
-        # "s18.bdf": 105,
-        # "s19.bdf": 150,
-        # "s20.bdf": 150,
-        # "s21.bdf": 150,
-        # "s22.bdf": 160
+        "s02.bdf": 160,
+        "s03.bdf": 100,
+        "s04.bdf": 150,
+        "s05.bdf": 150,
+        "s06.bdf": 150,
+        "s07.bdf": 110,
+        "s08.bdf": 150,
+        "s09.bdf": 150,
+        "s10.bdf": 110,
+        "s11.bdf": 110,
+        "s12.bdf": 150,
+        "s13.bdf": 110,
+        "s14.bdf": 110,
+        "s15.bdf": 150,
+        "s16.bdf": 105,
+        "s17.bdf": 150,
+        "s18.bdf": 105,
+        "s19.bdf": 150,
+        "s20.bdf": 150,
+        "s21.bdf": 150,
+        "s22.bdf": 160
     }
 
     subjects = list(magic_numbers.keys())
@@ -140,27 +140,43 @@ if __name__ == '__main__':
             # ad ogni id del picco del blink, crea un intorno con l'id precedente e successivo
             idx_blinks_near = extract_idx_blinks_near(idx_blinks)
 
+            sec = 0.5
             rawDatasetReReferenced = rawEEGall_trialTest.copy().set_eeg_reference(ref_channels='average', verbose=False)
             transposedDataset = np.transpose(rawDatasetReReferenced.get_data())
 
             trial_topomaps = []  # for given subject and given trial
             trial_labels = []
 
-            for i in range(0, transposedDataset.shape[0]):
+            # Tutte le topomap
+            """for i in range(0, transposedDataset.shape[0]):
                 channelValuesForCurrentSample = list(transposedDataset[i, :])
                 interpolatedTopographicMap, CordinateYellowRegion = createTopographicMapFromChannelValues(
                     channelValuesForCurrentSample, rawDatasetReReferenced, interpolationMethod="cubic",
                     verbose=False)
                 trial_label = labeling(idx_blinks_about, idx_blinks_near)
                 trial_labels.append(trial_label)
-                trial_topomaps.append(interpolatedTopographicMap)
+                trial_topomaps.append(interpolatedTopographicMap)"""
+
+            # Solo nell'intorno
+            for j in idx_blinks:
+                start_index = max(j - int(sec * sample_rate), 0)
+                end_index = min(j + int(sec * sample_rate), dataTrial.shape[1])
+                for i in range(start_index, end_index):
+                    channelValuesForCurrentSample = list(transposedDataset[i, :])
+                    interpolatedTopographicMap, CordinateYellowRegion = createTopographicMapFromChannelValues(
+                        channelValuesForCurrentSample, rawDatasetReReferenced, interpolationMethod="cubic",
+                        verbose=False)
+                    trial_topomaps.append(interpolatedTopographicMap)
+
+                    label = labeling(idx_blinks_about, idx_blinks_near)
+                    trial_labels.append(label)
 
             if len(trial_topomaps) != 0:
                 trial_topomaps = np.array(trial_topomaps)
                 trial_labels = np.array(trial_labels)
 
-                topomap_folder = 'topomaps'
-                labels_folder = 'labels'
+                topomap_folder = 'topomaps_reduced'  # Solo nell'intorno
+                labels_folder = 'labels_reduced'  # Solo nell'intorno
 
                 os.makedirs(topomap_folder, exist_ok=True)
                 os.makedirs(labels_folder, exist_ok=True)

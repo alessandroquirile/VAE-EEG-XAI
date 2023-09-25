@@ -166,3 +166,5 @@ labels/
 plots/
 topomaps/
 checkpoints/
+topomaps_reduced/
+labels_reduced/

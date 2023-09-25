@@ -226,8 +226,8 @@ def normalize(x):
 def grid_search_vae(x_train, latent_dimension):
     param_grid = {
         'epochs': [2500],
-        'l_rate': [10 ** -4, 10 ** -5, 10 ** -6, 10 ** -7],
-        'batch_size': [32, 64, 128, 256],
+        'l_rate': [10 ** -5, 10 ** -6, 10 ** -7],
+        'batch_size': [32, 64, 128],
         'patience': [30]
     }
 
@@ -311,7 +311,7 @@ class CustomGridSearchCV:
         param_combinations = list(product(*self.param_grid.values()))
         n_combinations = len(param_combinations)
 
-        for params in tqdm(param_combinations, total=n_combinations, desc="Combination"):
+        for params in tqdm(param_combinations, total=n_combinations, desc="Combination", unit="combination"):
             params_dict = dict(zip(self.param_grid.keys(), params))
 
             cv = KFold(n_splits=5, shuffle=True, random_state=42)
@@ -592,14 +592,14 @@ def set_server_config():
 
 
 if __name__ == '__main__':
-
-    # For remote server
-    # set_server_config()
-
     print("TensorFlow GPU usage:", tf.config.list_physical_devices('GPU'))
 
+    # Dati ridotti al solo intorno del blink
+    topomaps_folder = "topomaps_reduced"
+    labels_folder = "labels_reduced"
+
     # Load data
-    x_train, x_test, y_train, y_test = load_data("topomaps", "labels", 0.2, False)
+    x_train, x_test, y_train, y_test = load_data(topomaps_folder, labels_folder,0.2, False)
 
     # I am reducing the size of data set for speed purposes. For tests only
     # new_size = 200

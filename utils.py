@@ -106,64 +106,64 @@ def _get_number_of_samples_in_1_minute(sample_rate: int):
 
 
 def correct_labels():
-    print("\nCorrecting labels...")
+    print("\nCorrecting labels within labels_reduced folder...")
 
     # Correcting s01
     subject = "s01"
-    mark_as_no_blinks(f"labels/{subject}_trial06.npy")
-    mark_as_transition(f"labels/{subject}_trial30.npy", 79, 90)
+    mark_as_no_blinks(f"labels_reduced/{subject}_trial06.npy")
+    mark_as_transition(f"labels_reduced/{subject}_trial30.npy", 79, 90)
 
-    """# Correcting s02
+    # Correcting s02
     subject = "s02"
-    mark_as_transition(f"labels/{subject}_trial07.npy", 591, 619)
-    mark_as_transition(f"labels/{subject}_trial07.npy", 719, 742)
-    mark_as_transition(f"labels/{subject}_trial07.npy", 1743, 1745)
-    mark_as_transition(f"labels/{subject}_trial07.npy", 1871, 1878)
-    mark_as_transition(f"labels/{subject}_trial40.npy", 335, 340)
-    mark_as_transition(f"labels/{subject}_trial40.npy", 463, 480)
+    mark_as_transition(f"labels_reduced/{subject}_trial07.npy", 591, 619)
+    mark_as_transition(f"labels_reduced/{subject}_trial07.npy", 719, 742)
+    mark_as_transition(f"labels_reduced/{subject}_trial07.npy", 1743, 1745)
+    mark_as_transition(f"labels_reduced/{subject}_trial07.npy", 1871, 1878)
+    mark_as_transition(f"labels_reduced/{subject}_trial40.npy", 335, 340)
+    mark_as_transition(f"labels_reduced/{subject}_trial40.npy", 463, 480)
 
     # Correcting s07
     subject = "s07"
-    mark_as_transition(f"labels/{subject}_trial01.npy", 978, 991)
-    mark_as_transition(f"labels/{subject}_trial39.npy", 209, 229)
+    mark_as_transition(f"labels_reduced/{subject}_trial01.npy", 978, 991)
+    mark_as_transition(f"labels_reduced/{subject}_trial39.npy", 209, 229)
 
     # Correcting s10
     subject = "s10"
-    mark_as_transition(f"labels/{subject}_trial01.npy", 0, 128)
-    mark_as_no_blinks(f"labels/{subject}_trial01.npy", 181, 208)
-    mark_as_no_blinks(f"labels/{subject}_trial01.npy", 309, 315)
-    mark_as_no_blinks(f"labels/{subject}_trial01.npy", 330, 336)
+    mark_as_transition(f"labels_reduced/{subject}_trial01.npy", 0, 128)
+    mark_as_no_blinks(f"labels_reduced/{subject}_trial01.npy", 181, 208)
+    mark_as_no_blinks(f"labels_reduced/{subject}_trial01.npy", 309, 315)
+    mark_as_no_blinks(f"labels_reduced/{subject}_trial01.npy", 330, 336)
 
     # Correcting s13
     subject = "s13"
-    mark_as_no_blinks(f"labels/{subject}_trial01.npy", 73, 80)
-    mark_as_transition(f"labels/{subject}_trial01.npy", 336, 345)
+    mark_as_no_blinks(f"labels_reduced/{subject}_trial01.npy", 73, 80)
+    mark_as_transition(f"labels_reduced/{subject}_trial01.npy", 336, 345)
 
     # Correcting s14
     subject = "s14"
-    mark_as_no_blinks(f"labels/{subject}_trial01.npy", 72, 80)
-    mark_as_transition(f"labels/{subject}_trial01.npy", 336, 384)
+    mark_as_no_blinks(f"labels_reduced/{subject}_trial01.npy", 72, 80)
+    mark_as_transition(f"labels_reduced/{subject}_trial01.npy", 336, 384)
 
     # Correcting s15
     subject = "s15"
-    mark_as_no_blinks(f"labels/{subject}_trial40.npy", 693, 699)
-    mark_as_no_blinks(f"labels/{subject}_trial40.npy", 717, 720)
-    mark_as_transition(f"labels/{subject}_trial40.npy", 768, 787)
-    mark_as_blink(f"labels/{subject}_trial40.npy", 788, 790)
-    mark_as_transition(f"labels/{subject}_trial40.npy", 791, 792)
+    mark_as_no_blinks(f"labels_reduced/{subject}_trial40.npy", 693, 699)
+    mark_as_no_blinks(f"labels_reduced/{subject}_trial40.npy", 717, 720)
+    mark_as_transition(f"labels_reduced/{subject}_trial40.npy", 768, 787)
+    mark_as_blink(f"labels_reduced/{subject}_trial40.npy", 788, 790)
+    mark_as_transition(f"labels_reduced/{subject}_trial40.npy", 791, 792)
 
     # Correcting s16
     subject = "s16"
-    mark_as_no_blinks(f"labels/{subject}_trial01.npy", 70, 80)
-    mark_as_no_blinks(f"labels/{subject}_trial01.npy", 181, 186)
-    mark_as_no_blinks(f"labels/{subject}_trial01.npy", 309, 336)
+    mark_as_no_blinks(f"labels_reduced/{subject}_trial01.npy", 70, 80)
+    mark_as_no_blinks(f"labels_reduced/{subject}_trial01.npy", 181, 186)
+    mark_as_no_blinks(f"labels_reduced/{subject}_trial01.npy", 309, 336)
 
     # Correcting s17
     subject = "s17"
-    mark_as_no_blinks(f"labels/{subject}_trial01.npy", 38, 65)
-    mark_as_no_blinks(f"labels/{subject}_trial01.npy", 166, 193)
-    mark_as_transition(f"labels/{subject}_trial01.npy", 259, 294)
-    mark_as_transition(f"labels/{subject}_trial01.npy", 321, 368)"""
+    mark_as_no_blinks(f"labels_reduced/{subject}_trial01.npy", 38, 65)
+    mark_as_no_blinks(f"labels_reduced/{subject}_trial01.npy", 166, 193)
+    mark_as_transition(f"labels_reduced/{subject}_trial01.npy", 259, 294)
+    mark_as_transition(f"labels_reduced/{subject}_trial01.npy", 321, 368)
 
     print("Labels corrected")
 
