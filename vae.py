@@ -249,8 +249,8 @@ def grid_search_vae(x_train, latent_dimension):
 def custom_grid_search(x_train, latent_dimensions):
     param_grid = {
         'epochs': [2500],
-        'l_rate': [10 ** -4, 10 ** -5, 10 ** -6, 10 ** -7],
-        'batch_size': [32, 64, 128, 256],
+        'l_rate': [10 ** -5, 10 ** -6, 10 ** -7],
+        'batch_size': [32, 64, 128],
         'patience': [30]
     }
 
