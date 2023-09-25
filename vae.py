@@ -24,7 +24,7 @@ from tqdm import tqdm
 def load_data(topomaps_folder: str, labels_folder: str, test_size, anomaly_detection):
     x, y = _create_dataset(topomaps_folder, labels_folder)
 
-    print(f"Splitting data set into {1 - test_size} training set and {test_size} test set"
+    print(f"Splitting data set into {1 - test_size} training set and {test_size} test set "
           f"{'for latent space analysis' if not anomaly_detection else 'for anomaly detection'}")
 
     seed = 42
