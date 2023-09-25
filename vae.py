@@ -24,13 +24,13 @@ from tqdm import tqdm
 def load_data(topomaps_folder: str, labels_folder: str, test_size, anomaly_detection):
     x, y = _create_dataset(topomaps_folder, labels_folder)
 
-    print(f"Splitting data set into training set {1 - test_size} and test set {test_size}...")
+    print(f"Splitting data set into {1 - test_size} training set and {test_size} test set"
+          f"{'for latent space analysis' if not anomaly_detection else 'for anomaly detection'}")
 
     seed = 42
 
     if anomaly_detection:
-        print("For anomaly detection")
-        # Training set only contains images whose label is 0 for anomaly detection
+        # Training set only contains images whose label is 0
         train_indices = np.where(y == 0)[0]
         x_train = x[train_indices]
         y_train = y[train_indices]
@@ -47,7 +47,6 @@ def load_data(topomaps_folder: str, labels_folder: str, test_size, anomaly_detec
         if not y_train_only_contains_label_0 or not y_test_only_contains_label_1_and_2:
             raise Exception("Data was not loaded successfully")
     else:
-        print("For latent space analysis")
         x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=test_size, random_state=seed)
 
     return x_train, x_test, y_train, y_test
@@ -65,7 +64,8 @@ def _create_dataset(topomaps_folder, labels_folder):
 
     n_files = len(topomaps_files)
 
-    for topomaps_file, labels_file in tqdm(zip(topomaps_files, labels_files), total=n_files, desc="Loading data set"):
+    for topomaps_file, labels_file in tqdm(zip(topomaps_files, labels_files), total=n_files,
+                                           desc=f"Loading data set from {topomaps_folder} and {labels_folder} folders"):
         topomaps_array = np.load(f"{topomaps_folder}/{topomaps_file}")
         labels_array = np.load(f"{labels_folder}/{labels_file}")
         if topomaps_array.shape[0] != labels_array.shape[0]:
@@ -270,7 +270,9 @@ def refit(fitted_grid, x_train, y_train, latent_dimension):
     best_batch_size = fitted_grid.best_params_["batch_size"]
     best_patience = fitted_grid.best_params_["patience"]
 
-    x_train, x_val, y_train, y_val = train_test_split(x_train, y_train, test_size=0.2)
+    val_size = 0.2
+    x_train, x_val, y_train, y_val = train_test_split(x_train, y_train, test_size=val_size)
+    print("val_size", val_size)
     print("x_val shape:", x_val.shape)
     print("y_val shape:", y_val.shape)
 
@@ -311,10 +313,13 @@ class CustomGridSearchCV:
         param_combinations = list(product(*self.param_grid.values()))
         n_combinations = len(param_combinations)
 
+        n_splits = 5
+        print("n_splits:", n_splits)
+
         for params in tqdm(param_combinations, total=n_combinations, desc="Combination", unit="combination"):
             params_dict = dict(zip(self.param_grid.keys(), params))
 
-            cv = KFold(n_splits=5, shuffle=True, random_state=42)
+            cv = KFold(n_splits=n_splits, shuffle=True, random_state=42)
             scores = []
 
             for train_idx, val_idx in cv.split(x_train):
@@ -345,7 +350,7 @@ class CustomGridSearchCV:
 
             print(f"avg_score for current combination: {avg_score:.4f}")
 
-            # Update best hyperparameters based on the highest SSIM score
+            # Update the best hyperparameters based on the highest SSIM score
             if self.best_score_ is None or avg_score > self.best_score_:
                 self.best_score_ = avg_score
                 self.best_params_ = params_dict
