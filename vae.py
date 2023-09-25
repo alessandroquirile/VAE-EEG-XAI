@@ -240,7 +240,7 @@ def grid_search_vae(x_train, latent_dimension):
 
     grid = GridSearchCV(
         VAEWrapper(encoder=Encoder(latent_dimension), decoder=Decoder()),
-        param_grid, scoring=ssim_scorer, cv=5, refit=False
+        param_grid, scoring=ssim_scorer, cv=3, refit=False
     )
 
     grid.fit(x_train, x_train)
@@ -313,7 +313,7 @@ class CustomGridSearchCV:
         param_combinations = list(product(*self.param_grid.values()))
         n_combinations = len(param_combinations)
 
-        n_splits = 5
+        n_splits = 3
         print("n_splits:", n_splits)
 
         for params in tqdm(param_combinations, total=n_combinations, desc="Combination", unit="combination"):
