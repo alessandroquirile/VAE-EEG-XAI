@@ -254,7 +254,7 @@ def custom_grid_search(x_train, latent_dimensions):
         'patience': [30]
     }
 
-    print("\nCustom grid search: I am tuning the hyper parameters:", param_grid)
+    print("\nCustom grid search. param_grid: ", param_grid)
 
     grid_search = CustomGridSearchCV(param_grid)
     grid_search.fit(x_train, latent_dimensions)
@@ -263,7 +263,7 @@ def custom_grid_search(x_train, latent_dimensions):
 
 
 def refit(fitted_grid, x_train, y_train, latent_dimension):
-    print("\nRefitting based on:", fitted_grid.best_params_)
+    print("\nRefitting based on best params:", fitted_grid.best_params_)
 
     best_epochs = fitted_grid.best_params_["epochs"]
     best_l_rate = fitted_grid.best_params_["l_rate"]
@@ -281,7 +281,7 @@ def refit(fitted_grid, x_train, y_train, latent_dimension):
 
     early_stopping = EarlyStopping("val_loss", patience=best_patience, verbose=1)
     history = vae.fit(x_train, x_train, best_batch_size, best_epochs,
-                      validation_data=(x_val, x_val), callbacks=[early_stopping], verbose=2)
+                      validation_data=(x_val, x_val), callbacks=[early_stopping], verbose=1)
     return history, vae
 
 
@@ -308,9 +308,10 @@ class CustomGridSearchCV:
 
     def fit(self, x_train, latent_dimensions):
         ssim_scorer = my_ssim
-        param_combinations = product(*self.param_grid.values())
+        param_combinations = list(product(*self.param_grid.values()))
+        n_combinations = len(param_combinations)
 
-        for params in param_combinations:
+        for params in tqdm(param_combinations, total=n_combinations, desc="Combination"):
             params_dict = dict(zip(self.param_grid.keys(), params))
 
             cv = KFold(n_splits=5, shuffle=True, random_state=42)
@@ -326,7 +327,7 @@ class CustomGridSearchCV:
 
                 early_stopping = EarlyStopping("val_loss", patience=params_dict['patience'])
                 vae.fit(x_train_fold, x_train_fold, params_dict['batch_size'], params_dict['epochs'],
-                        validation_data=(x_val_fold, x_val_fold), callbacks=[early_stopping])
+                        validation_data=(x_val_fold, x_val_fold), callbacks=[early_stopping], verbose=0)
 
                 predicted = vae.predict(x_val_fold)
                 score = ssim_scorer(x_val_fold, predicted)
@@ -341,6 +342,8 @@ class CustomGridSearchCV:
             avg_score = np.mean(scores)
             params_dict['avg_score'] = avg_score
             self.grid_.append(params_dict)
+
+            print(f"avg_score for current combination: {avg_score:.4f}")
 
             # Update best hyperparameters based on the highest SSIM score
             if self.best_score_ is None or avg_score > self.best_score_:
@@ -599,9 +602,9 @@ if __name__ == '__main__':
     x_train, x_test, y_train, y_test = load_data("topomaps", "labels", 0.2, False)
 
     # I am reducing the size of data set for speed purposes. For tests only
-    # new_size = 100
-    # x_train, y_train = reduce_size(x_train, y_train, new_size)
-    # x_test, y_test = reduce_size(x_test, y_test, new_size)
+    new_size = 100
+    x_train, y_train = reduce_size(x_train, y_train, new_size)
+    x_test, y_test = reduce_size(x_test, y_test, new_size)
 
     # Expand dimensions to (None, 40, 40, 1)
     # This is because VAE is currently working with 4d tensors
