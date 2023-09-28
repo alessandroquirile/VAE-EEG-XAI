@@ -272,7 +272,7 @@ def refit(fitted_grid, x_train, y_train, latent_dimension):
 
     val_size = 0.2
     x_train, x_val, y_train, y_val = train_test_split(x_train, y_train, test_size=val_size)
-    print("val_size", val_size)
+    print(f"validation data is {val_size} of training data")
     print("x_val shape:", x_val.shape)
     print("y_val shape:", y_val.shape)
 
@@ -315,6 +315,7 @@ class CustomGridSearchCV:
 
         n_splits = 3
         print("n_splits:", n_splits)
+        print("scorer:", ssim_scorer)
 
         for params in tqdm(param_combinations, total=n_combinations, desc="Combination", unit="combination"):
             params_dict = dict(zip(self.param_grid.keys(), params))
@@ -348,7 +349,7 @@ class CustomGridSearchCV:
             params_dict['avg_score'] = avg_score
             self.grid_.append(params_dict)
 
-            print(f"avg_score for current combination: {avg_score:.4f}")
+            print(f"avg_score for current combination: {avg_score:.5f}")
 
             # Update the best hyperparameters based on the highest SSIM score
             if self.best_score_ is None or avg_score > self.best_score_:
