@@ -19,6 +19,7 @@ from sklearn.metrics import mean_absolute_error, make_scorer
 from sklearn.model_selection import train_test_split, GridSearchCV, KFold
 from tensorflow import keras
 from tqdm import tqdm
+from tensorflow.python.ops.numpy_ops import np_config
 
 
 def load_data(topomaps_folder: str, labels_folder: str, test_size, anomaly_detection):
@@ -66,8 +67,10 @@ def _create_dataset(topomaps_folder, labels_folder):
 
     for topomaps_file, labels_file in tqdm(zip(topomaps_files, labels_files), total=n_files,
                                            desc=f"Loading data set from {topomaps_folder} and {labels_folder} folders"):
-        topomaps_array = np.load(f"{topomaps_folder}/{topomaps_file}")
-        labels_array = np.load(f"{labels_folder}/{labels_file}")
+        if topomaps_file.endswith('.DS_Store'):
+            continue
+        topomaps_array = np.load(f"{topomaps_folder}/{topomaps_file}", allow_pickle=True)
+        labels_array = np.load(f"{labels_folder}/{labels_file}", allow_pickle=True)
         if topomaps_array.shape[0] != labels_array.shape[0]:
             raise Exception("Shapes must be equal")
         for i in range(topomaps_array.shape[0]):
@@ -84,8 +87,8 @@ def flat_mae(x, y):
     return mean_absolute_error(y.flatten(), x.flatten())
 
 
-def my_ssim(im1, im2):
-    return ssim(im1, im2, data_range=1, channel_axis=-1)
+def my_ssim(original, reconstructed):
+    return ssim(original, reconstructed, data_range=1, channel_axis=-1)
 
 
 def sample(z_mean, z_log_var):
@@ -116,6 +119,9 @@ def plot_latent_space(vae, data, points_to_sample=30, figsize=15):
     :param figsize: The size of the figure (width and height) in inches. Default is 15.
     :return: None (displays the plot).
     """
+
+    np_config.enable_numpy_behavior()
+
     image_size = data.shape[1]
     scale = 1.0
 
@@ -127,7 +133,7 @@ def plot_latent_space(vae, data, points_to_sample=30, figsize=15):
     grid_y = np.linspace(-scale, scale, points_to_sample)[::-1]  # Reverse the order of grid_y
 
     # Apply t-SNE to the latent space
-    z_mean, _, _ = vae.encoder.predict(data)
+    z_mean, _, _ = vae.encoder(data)
     tsne = TSNE(n_components=2, verbose=1)
     z_mean_reduced = tsne.fit_transform(z_mean)
 
@@ -140,7 +146,7 @@ def plot_latent_space(vae, data, points_to_sample=30, figsize=15):
             z_sample = z_mean[idx]
 
             # Decode the latent sample to generate an image
-            x_decoded = vae.decoder.predict(np.expand_dims(z_sample, axis=0))
+            x_decoded = vae.decoder(np.expand_dims(z_sample, axis=0))
 
             # Reshape the decoded image to match the desired image size
             digit = x_decoded.reshape(image_size, image_size)
@@ -178,7 +184,9 @@ def plot_label_clusters(vae, data, labels):
     :param labels: Array of labels corresponding to the data of shape (num_samples,).
     :return: None (displays the plot)
     """
-    z_mean, _, _ = vae.encoder.predict(data)
+
+    # call vs predict: https://stackoverflow.com/a/70205891/17082611
+    z_mean, _, _ = vae.encoder(data)
 
     data = data.reshape(data.shape[0], -1)
 
@@ -254,7 +262,7 @@ def custom_grid_search(x_train, latent_dimensions):
         'patience': [30]
     }
 
-    print("\nCustom grid search. param_grid: ", param_grid)
+    print("\nCustom grid search with param_grid: ", param_grid)
 
     grid_search = CustomGridSearchCV(param_grid)
     grid_search.fit(x_train, latent_dimensions)
@@ -278,7 +286,7 @@ def refit(fitted_grid, x_train, y_train, latent_dimension):
 
     encoder = Encoder(latent_dimension)
     decoder = Decoder()
-    vae = VAE(encoder, decoder, best_epochs, best_l_rate, best_batch_size)
+    vae = VAE(encoder, decoder, best_epochs, best_l_rate, best_batch_size, best_patience)
     vae.compile(Adam(best_l_rate))
 
     early_stopping = EarlyStopping("val_loss", patience=best_patience, verbose=1)
@@ -294,10 +302,11 @@ def visually_check_reconstruction_skill(vae, x_test):
     plt.imshow(original_image, cmap="gray")
     plt.show()
 
-    plt.title(f"Reconstructed image {image_index}, latent_dim = {latent_dimension}, batch_size = {vae.batch_size},"
-              f"epochs = {vae.epochs}, l_rate = {vae.l_rate}, patience = {vae.patience}")
     x_test_reconstructed = vae.predict(x_test)
     reconstructed_image = x_test_reconstructed[image_index]
+    ssim = my_ssim(original_image, reconstructed_image)
+    plt.title(f"Reconstructed image {image_index}, latent_dim = {vae.encoder.latent_dim}, batch_size = {vae.batch_size},"
+              f"epochs = {vae.epochs}, l_rate = {vae.l_rate}, patience = {vae.patience}, ssim = {ssim}")
     plt.imshow(reconstructed_image, cmap="gray")
     plt.show()
 
@@ -569,8 +578,8 @@ class Decoder(keras.layers.Layer):
         return decoder_outputs
 
 
-def save(history):
-    with open('history.pickle', 'wb') as file_pi:
+def save(history, subject):
+    with open(f'history_{subject}.pickle', 'wb') as file_pi:
         pickle.dump(history.history, file_pi)
 
 
@@ -601,10 +610,12 @@ if __name__ == '__main__':
     print("TensorFlow GPU usage:", tf.config.list_physical_devices('GPU'))
 
     # Dati ridotti al solo intorno del blink
-    topomaps_folder = "topomaps_reduced"
-    labels_folder = "labels_reduced"
+    subject = "s02"
+    topomaps_folder = f"topomaps_reduced_{subject}"
+    labels_folder = f"labels_reduced_{subject}"
 
     # Load data
+    print(f"Subject {subject}")
     x_train, x_test, y_train, y_test = load_data(topomaps_folder, labels_folder,0.2, False)
 
     # I am reducing the size of data set for speed purposes. For tests only
@@ -634,8 +645,14 @@ if __name__ == '__main__':
 
     # Manually refit, since refit=True raises problems with TensorFlow models
     history, vae = refit(grid, x_train, y_train, latent_dimension)
-    save(history)
-    vae.save_weights("checkpoints/vae")
+    save(history, subject)
+    vae.save_weights(f"checkpoints/vae_{subject}", save_format='tf')
+
+    # Questa parte serve per serializzare i pesi e verificare che a seguito del load
+    # Essi siano uguali, nel file latent_space_analysis
+    w_before = vae.get_weights()
+    with open("w_before.pickle", "wb") as fp:
+        pickle.dump(w_before, fp)
 
     # plot_metric(history, "loss")
     # plot_metric(history, "reconstruction_loss")
