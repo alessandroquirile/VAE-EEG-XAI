@@ -1,6 +1,3 @@
-import tensorflow as tf
-from keras.optimizers.legacy import Adam
-
 from vae import *
 
 if __name__ == '__main__':
@@ -30,6 +27,7 @@ if __name__ == '__main__':
     x_test = normalize(x_test)
 
     # From grid.best_params_
+    # Instead of dumping the grid into a pickle file, just cat the log file and read data there
     latent_dimension = 25
     best_epochs = 2500
     best_l_rate = 10 ** -5
@@ -45,6 +43,7 @@ if __name__ == '__main__':
     vae.load_weights("checkpoints/vae")
 
     # Verifico che i pesi siano inalterati prima/dopo il load
+    # dbg
     """w_after = vae.get_weights()
     with open("w_before.pickle", "rb") as fp:
         w_before = pickle.load(fp)
@@ -53,6 +52,7 @@ if __name__ == '__main__':
         print(f"Same weights? {w_before.all() == w_after.all()}")"""
 
     # Verifica SSIM medio per la combinazione corrente
+    # dbg
     cv = KFold(n_splits=3, shuffle=True, random_state=42)
     scores = []
 
@@ -65,8 +65,7 @@ if __name__ == '__main__':
 
     avg_score = np.mean(scores)
 
-    print(f"avg_score for current combination: {avg_score:.5f}")
+    print(f"avg_score (ssim) for current combination: {avg_score:.5f}")
 
-    plot_label_clusters(vae, x_test, y_test)
+    # plot_label_clusters(vae, x_test, y_test)
     visually_check_reconstruction_skill(vae, x_test)
-

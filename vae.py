@@ -18,8 +18,8 @@ from sklearn.manifold import TSNE
 from sklearn.metrics import mean_absolute_error, make_scorer
 from sklearn.model_selection import train_test_split, GridSearchCV, KFold
 from tensorflow import keras
-from tqdm import tqdm
 from tensorflow.python.ops.numpy_ops import np_config
+from tqdm import tqdm
 
 
 def load_data(topomaps_folder: str, labels_folder: str, test_size, anomaly_detection):
@@ -88,6 +88,9 @@ def flat_mae(x, y):
 
 
 def my_ssim(original, reconstructed):
+    # data_range=1 requires the data to be normalized between 0 and 1
+    original = normalize(original)
+    reconstructed = normalize(reconstructed)
     return ssim(original, reconstructed, data_range=1, channel_axis=-1)
 
 
@@ -254,6 +257,7 @@ def grid_search_vae(x_train, latent_dimension):
     grid.fit(x_train, x_train)
     return grid
 
+
 def custom_grid_search(x_train, latent_dimensions):
     param_grid = {
         'epochs': [2500],
@@ -305,10 +309,15 @@ def visually_check_reconstruction_skill(vae, x_test):
     x_test_reconstructed = vae.predict(x_test)
     reconstructed_image = x_test_reconstructed[image_index]
     ssim = my_ssim(original_image, reconstructed_image)
-    plt.title(f"Reconstructed image {image_index}, latent_dim = {vae.encoder.latent_dim}, batch_size = {vae.batch_size},"
-              f"epochs = {vae.epochs}, l_rate = {vae.l_rate}, patience = {vae.patience}, ssim = {ssim}")
+    plt.title(
+        f"Reconstructed image {image_index}, latent_dim = {vae.encoder.latent_dim}, batch_size = {vae.batch_size},"
+        f"epochs = {vae.epochs}, l_rate = {vae.l_rate}, patience = {vae.patience}, ssim = {ssim}")
     plt.imshow(reconstructed_image, cmap="gray")
     plt.show()
+
+    # np.save("original.npy", original_image)  # dbg
+    # np.save("reconstructed.npy", reconstructed_image)  # dbg
+
 
 class CustomGridSearchCV:
     def __init__(self, param_grid):
@@ -358,7 +367,7 @@ class CustomGridSearchCV:
             params_dict['avg_score'] = avg_score
             self.grid_.append(params_dict)
 
-            print(f"avg_score for current combination: {avg_score:.5f}")
+            print(f"avg_score (ssim) for current combination: {avg_score:.5f}")
 
             # Update the best hyperparameters based on the highest SSIM score
             if self.best_score_ is None or avg_score > self.best_score_:
@@ -616,7 +625,7 @@ if __name__ == '__main__':
 
     # Load data
     print(f"Subject {subject}")
-    x_train, x_test, y_train, y_test = load_data(topomaps_folder, labels_folder,0.2, False)
+    x_train, x_test, y_train, y_test = load_data(topomaps_folder, labels_folder, 0.2, False)
 
     # I am reducing the size of data set for speed purposes. For tests only
     # new_size = 200
@@ -650,9 +659,10 @@ if __name__ == '__main__':
 
     # Questa parte serve per serializzare i pesi e verificare che a seguito del load
     # Essi siano uguali nel file latent_space_analysis.py
-    w_before = vae.get_weights()
+    # dbg
+    """w_before = vae.get_weights()
     with open("w_before.pickle", "wb") as fp:
-        pickle.dump(w_before, fp)
+        pickle.dump(w_before, fp)"""
 
     # plot_metric(history, "loss")
     # plot_metric(history, "reconstruction_loss")
