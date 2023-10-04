@@ -163,8 +163,10 @@ data_original/
 events/
 images/
 labels/
+labels_*/
 plots/
 topomaps/
+topomaps_*/
 checkpoints/
 topomaps_reduced/
 labels_reduced/
