@@ -619,12 +619,11 @@ if __name__ == '__main__':
     print("TensorFlow GPU usage:", tf.config.list_physical_devices('GPU'))
 
     # Dati ridotti al solo intorno del blink
-    subject = "s02"
+    subject = "s01"
     topomaps_folder = f"topomaps_reduced_{subject}"
     labels_folder = f"labels_reduced_{subject}"
 
     # Load data
-    print(f"Subject {subject}")
     x_train, x_test, y_train, y_test = load_data(topomaps_folder, labels_folder, 0.2, False)
 
     # I am reducing the size of data set for speed purposes. For tests only
