@@ -4,12 +4,11 @@ if __name__ == '__main__':
     print("TensorFlow GPU usage:", tf.config.list_physical_devices('GPU'))
 
     # Dati ridotti al solo intorno del blink
-    subject = "s02"
+    subject = "s01"
     topomaps_folder = f"topomaps_reduced_{subject}"
     labels_folder = f"labels_reduced_{subject}"
 
     # Load data
-    print(f"Subject {subject}")
     x_train, x_test, y_train, y_test = load_data(topomaps_folder, labels_folder, 0.2, False)
 
     # I am reducing the size of data set for speed purposes. For tests only
@@ -30,7 +29,7 @@ if __name__ == '__main__':
     # Instead of dumping the grid into a pickle file, just cat the log file and read data there
     latent_dimension = 25
     best_epochs = 2500
-    best_l_rate = 10 ** -5
+    best_l_rate = 1e-05
     best_batch_size = 32
     best_patience = 30
 
@@ -40,7 +39,7 @@ if __name__ == '__main__':
     vae = VAE(encoder, decoder, best_epochs, best_l_rate, best_batch_size, best_patience)
     vae.compile(Adam(best_l_rate))
     vae.train_on_batch(x_train[:1], x_train[:1])  # Fondamentale
-    vae.load_weights("checkpoints/vae")
+    vae.load_weights(f"checkpoints/vae_{subject}")
 
     # Verifico che i pesi siano inalterati prima/dopo il load
     # dbg

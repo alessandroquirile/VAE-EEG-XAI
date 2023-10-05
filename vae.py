@@ -327,13 +327,12 @@ class CustomGridSearchCV:
         self.grid_ = []
 
     def fit(self, x_train, latent_dimensions):
-        ssim_scorer = my_ssim
         param_combinations = list(product(*self.param_grid.values()))
         n_combinations = len(param_combinations)
 
         n_splits = 3
         print("n_splits:", n_splits)
-        print("scorer:", ssim_scorer)
+        print("scorer:", my_ssim)
 
         for params in tqdm(param_combinations, total=n_combinations, desc="Combination", unit="combination"):
             params_dict = dict(zip(self.param_grid.keys(), params))
@@ -354,7 +353,7 @@ class CustomGridSearchCV:
                         validation_data=(x_val_fold, x_val_fold), callbacks=[early_stopping], verbose=0)
 
                 predicted = vae.predict(x_val_fold)
-                score = ssim_scorer(x_val_fold, predicted)
+                score = my_ssim(x_val_fold, predicted)
                 scores.append(score)
 
                 # Clear the TensorFlow session to free GPU memory
