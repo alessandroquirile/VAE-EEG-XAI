@@ -1,5 +1,14 @@
 from vae import *
 
+
+def check_weights_equality(w_before_path, vae):
+    w_after = vae.get_weights()
+    with open(w_before_path, "rb") as fp:
+        w_before = pickle.load(fp)
+    for tensor_num, (w_before, w_after) in enumerate(zip(w_before, w_after), start=1):
+        if not w_before.all() == w_after.all():
+            raise Exception(f"Weights loaded was unsuccessful for tensor {tensor_num}")
+
 if __name__ == '__main__':
     print("TensorFlow GPU usage:", tf.config.list_physical_devices('GPU'))
 
@@ -42,13 +51,7 @@ if __name__ == '__main__':
     vae.load_weights(f"checkpoints/vae_{subject}")
 
     # Verifico che i pesi siano inalterati prima/dopo il load
-    # dbg
-    """w_after = vae.get_weights()
-    with open("w_before.pickle", "rb") as fp:
-        w_before = pickle.load(fp)
-    for tensor_num, (w_before, w_after) in enumerate(zip(w_before, w_after), start=1):
-        print(f"Tensor {tensor_num}:")
-        print(f"Same weights? {w_before.all() == w_after.all()}")"""
+    check_weights_equality("w_before.pickle", vae)  # dbg
 
     # Verifica SSIM medio per la combinazione corrente
     # dbg
