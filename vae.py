@@ -672,7 +672,7 @@ if __name__ == '__main__':
     # Essi siano uguali nel file analysis.py
     # dbg
     w_before = vae.get_weights()
-    with open("w_before.pickle", "wb") as fp:
+    with open(f"w_before_{subject}.pickle", "wb") as fp:
         pickle.dump(w_before, fp)
 
     # plot_metric(history, "loss")
