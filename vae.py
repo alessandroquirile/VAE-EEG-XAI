@@ -294,8 +294,21 @@ def refit(fitted_grid, x_train, y_train, latent_dimension):
     vae.compile(Adam(best_l_rate))
 
     early_stopping = EarlyStopping("val_loss", patience=best_patience, verbose=1)
+
     history = vae.fit(x_train, x_train, best_batch_size, best_epochs,
                       validation_data=(x_val, x_val), callbacks=[early_stopping], verbose=1)
+
+    # dbg
+    cv = KFold(n_splits=3, shuffle=True, random_state=42)
+    scores = []
+    for train_idx, val_idx in cv.split(x_train):
+        x_train_fold, x_val_fold = x_train[train_idx], x_train[val_idx]
+        predicted = vae.predict(x_val_fold)
+        score = my_ssim(x_val_fold, predicted)
+        scores.append(score)
+    avg_score = np.mean(scores)
+    print(f"[dbg] avg_score (ssim) for current (best) combination after FIT: {avg_score:.5f}")
+
     return history, vae
 
 
@@ -658,9 +671,9 @@ if __name__ == '__main__':
     # Questa parte serve per serializzare i pesi e verificare che a seguito del load
     # Essi siano uguali nel file latent_space_analysis.py
     # dbg
-    """w_before = vae.get_weights()
+    w_before = vae.get_weights()
     with open("w_before.pickle", "wb") as fp:
-        pickle.dump(w_before, fp)"""
+        pickle.dump(w_before, fp)
 
     # plot_metric(history, "loss")
     # plot_metric(history, "reconstruction_loss")

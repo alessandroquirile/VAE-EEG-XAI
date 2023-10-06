@@ -7,7 +7,8 @@ def check_weights_equality(w_before_path, vae):
         w_before = pickle.load(fp)
     for tensor_num, (w_before, w_after) in enumerate(zip(w_before, w_after), start=1):
         if not w_before.all() == w_after.all():
-            raise Exception(f"Weights loaded was unsuccessful for tensor {tensor_num}")
+            raise Exception(f"Weights loading was unsuccessful for tensor {tensor_num}")
+
 
 if __name__ == '__main__':
     print("TensorFlow GPU usage:", tf.config.list_physical_devices('GPU'))
@@ -35,39 +36,31 @@ if __name__ == '__main__':
     x_test = normalize(x_test)
 
     # From grid.best_params_
-    # Instead of dumping the grid into a pickle file, just cat the log file and read data there
     latent_dimension = 25
-    best_epochs = 2500
     best_l_rate = 1e-05
-    best_batch_size = 32
-    best_patience = 30
 
     # Loading saved weights
     encoder = Encoder(latent_dimension)
     decoder = Decoder()
-    vae = VAE(encoder, decoder, best_epochs, best_l_rate, best_batch_size, best_patience)
+    vae = VAE(encoder, decoder)
     vae.compile(Adam(best_l_rate))
-    vae.train_on_batch(x_train[:1], x_train[:1])  # Fondamentale
+    vae.train_on_batch(x_train[:1], x_train[:1])  # Fondamentale per evitare i warning
     vae.load_weights(f"checkpoints/vae_{subject}")
 
     # Verifico che i pesi siano inalterati prima/dopo il load
-    # check_weights_equality("w_before.pickle", vae)  # dbg
+    check_weights_equality("w_before.pickle", vae)  # dbg
 
     # Verifica SSIM medio per la combinazione corrente
     # dbg
     cv = KFold(n_splits=3, shuffle=True, random_state=42)
     scores = []
-
     for train_idx, val_idx in cv.split(x_train):
         x_train_fold, x_val_fold = x_train[train_idx], x_train[val_idx]
-        early_stopping = EarlyStopping("val_loss", patience=best_patience)
         predicted = vae.predict(x_val_fold)
         score = my_ssim(x_val_fold, predicted)
         scores.append(score)
-
     avg_score = np.mean(scores)
-
-    print(f"avg_score (ssim) for current combination: {avg_score:.5f}")
+    print(f"[dbg] avg_score (ssim) for current combination: {avg_score:.5f}")
 
     # plot_label_clusters(vae, x_test, y_test)
-    visually_check_reconstruction_skill(vae, x_test)
+    # visually_check_reconstruction_skill(vae, x_train)
