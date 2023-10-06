@@ -669,7 +669,7 @@ if __name__ == '__main__':
     vae.save_weights(f"checkpoints/vae_{subject}", save_format='tf')
 
     # Questa parte serve per serializzare i pesi e verificare che a seguito del load
-    # Essi siano uguali nel file latent_space_analysis.py
+    # Essi siano uguali nel file analysis.py
     # dbg
     w_before = vae.get_weights()
     with open("w_before.pickle", "wb") as fp:
