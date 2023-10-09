@@ -213,13 +213,25 @@ def plot_label_clusters(vae, data, labels):
 
 
 def plot_metric(history, metric):
-    plt.plot(history.history[metric])
-    plt.plot(history.history['val_' + metric])
+    # Legge dal pickle
+    with open(history, "rb") as fp:
+        history_data = pickle.load(fp)
+    plt.plot(history_data[metric])
+    plt.plot(history_data['val_' + metric])
     plt.title(metric)
     plt.ylabel(metric)
     plt.xlabel('epoch')
     plt.legend(['train', 'validation'])
     plt.show()
+
+    # Legge direttamente dalla history del fit
+    """plt.plot(history.history[metric])
+    plt.plot(history.history['val_' + metric])
+    plt.title(metric)
+    plt.ylabel(metric)
+    plt.xlabel('epoch')
+    plt.legend(['train', 'validation'])
+    plt.show()"""
 
 
 def reduce_size(x, y, new_size):

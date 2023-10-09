@@ -48,7 +48,7 @@ if __name__ == '__main__':
     vae.load_weights(f"checkpoints/vae_{subject}")
 
     # Verifico che i pesi siano inalterati prima/dopo il load
-    check_weights_equality(f"w_before_{subject}.pickle", vae)  # dbg
+    check_weights_equality(f"w_before_{subject}.pickle", vae)
 
     # Verifica SSIM medio per la combinazione corrente
     # dbg
