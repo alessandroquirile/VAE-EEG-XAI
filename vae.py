@@ -692,6 +692,8 @@ if __name__ == '__main__':
     with open(f"w_before_{subject}.pickle", "wb") as fp:
         pickle.dump(w_before, fp)
 
+    print(f"Finished training. You can transfer w_before_{subject}.pickle to client for consistency check")
+
     # plot_metric(history, "loss")
     # plot_metric(history, "reconstruction_loss")
     # plot_metric(history, "kl_loss")

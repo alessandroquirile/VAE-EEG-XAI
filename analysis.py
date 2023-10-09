@@ -13,7 +13,7 @@ def check_weights_equality(w_before_path, vae):
             raise Exception(f"Weights loading was unsuccessful for tensor {tensor_num}")
 
 def save_clusters(file_name):
-    print(f"Saving {file_name}")
+    print(f"Saving {file_name}\n")
     with open(file_name, "wb") as fp:
         pickle.dump(clusters, fp)
 
@@ -46,7 +46,7 @@ def avg_score_dbg():
         score = my_ssim(x_val_fold, predicted)
         scores.append(score)
     avg_score = np.mean(scores)
-    print(f"[dbg] avg_score (ssim) for current combination: {avg_score:.5f}")
+    print(f"[dbg] avg_score (ssim) for current combination: {avg_score:.5f}\n")
 
 
 if __name__ == '__main__':
@@ -101,7 +101,7 @@ if __name__ == '__main__':
     """show_original("original.npy")
     show_reconstructed("reconstructed.npy") """
 
-    # Mostro SSIM
+    # Calcolo SSIM
     original_image = np.load("original.npy")
     reconstructed_image = np.load("reconstructed.npy")
     ssim = my_ssim(original_image, reconstructed_image)
