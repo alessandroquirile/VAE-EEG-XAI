@@ -1,4 +1,5 @@
 import matplotlib.pyplot as plt
+import numpy as np
 
 from vae import *
 
@@ -11,14 +12,41 @@ def check_weights_equality(w_before_path, vae):
         if not w_before.all() == w_after.all():
             raise Exception(f"Weights loading was unsuccessful for tensor {tensor_num}")
 
-def save_clusters(clusters, subject):
-    with open(f"clusters_{subject}.pickle", "wb") as fp:
+def save_clusters(file_name):
+    print(f"Saving {file_name}")
+    with open(file_name, "wb") as fp:
         pickle.dump(clusters, fp)
 
-def read_clusters(clusters_path):
+def show_clusters(clusters_path):
     with open(clusters_path, "rb") as fp:
         pickle.load(fp)
     plt.show()
+
+def show_original(topomap_path):
+    plt.clf()
+    plt.title(f"Original image")
+    original_image = np.load(topomap_path)
+    plt.imshow(original_image, cmap="gray")
+    plt.show()
+
+def show_reconstructed(topomap_path):
+    plt.clf()
+    reconstructed_image = np.load(topomap_path)
+    plt.title(f"Reconstructed image")
+    plt.imshow(reconstructed_image, cmap="gray")
+    plt.show()
+
+
+def avg_score_dbg():
+    cv = KFold(n_splits=3, shuffle=True, random_state=42)
+    scores = []
+    for train_idx, val_idx in cv.split(x_train):
+        x_train_fold, x_val_fold = x_train[train_idx], x_train[val_idx]
+        predicted = vae.predict(x_val_fold)
+        score = my_ssim(x_val_fold, predicted)
+        scores.append(score)
+    avg_score = np.mean(scores)
+    print(f"[dbg] avg_score (ssim) for current combination: {avg_score:.5f}")
 
 
 if __name__ == '__main__':
@@ -32,11 +60,6 @@ if __name__ == '__main__':
     # Load data
     x_train, x_test, y_train, y_test = load_data(topomaps_folder, labels_folder, 0.2, False)
 
-    # I am reducing the size of data set for speed purposes. For tests only
-    # new_size = 200
-    # x_train, y_train = reduce_size(x_train, y_train, new_size)
-    # x_test, y_test = reduce_size(x_test, y_test, new_size)
-
     # Expand dimensions to (None, 40, 40, 1)
     # This is because VAE is currently working with 4d tensors
     x_train = expand(x_train)
@@ -46,15 +69,11 @@ if __name__ == '__main__':
     x_train = normalize(x_train)
     x_test = normalize(x_test)
 
-    # From grid.best_params_
-    latent_dimension = 25
-    best_l_rate = 1e-05
-
     # Loading saved weights
-    encoder = Encoder(latent_dimension)
+    encoder = Encoder(25)
     decoder = Decoder()
     vae = VAE(encoder, decoder)
-    vae.compile(Adam(best_l_rate))
+    vae.compile(Adam(1e-05))
     vae.train_on_batch(x_train[:1], x_train[:1])  # Fondamentale per evitare i warning
     vae.load_weights(f"checkpoints/vae_{subject}")
 
@@ -62,39 +81,30 @@ if __name__ == '__main__':
     check_weights_equality(f"w_before_{subject}.pickle", vae)
 
     # Verifica SSIM medio per la combinazione corrente
-    cv = KFold(n_splits=3, shuffle=True, random_state=42)
-    scores = []
-    for train_idx, val_idx in cv.split(x_train):
-        x_train_fold, x_val_fold = x_train[train_idx], x_train[val_idx]
-        predicted = vae.predict(x_val_fold)
-        score = my_ssim(x_val_fold, predicted)
-        scores.append(score)
-    avg_score = np.mean(scores)
-    print(f"[dbg] avg_score (ssim) for current combination: {avg_score:.5f}")
+    avg_score_dbg()
 
-    # Salvo i cluster
-    # clusters = plot_label_clusters(vae, x_test, y_test)
-    # save_clusters(clusters, subject)
+    # Salvo i cluster - su server
+    clusters = plot_label_clusters(vae, x_test, y_test)
+    save_clusters(f"clusters_{subject}.pickle")
 
     # Leggo i cluster - solo su client
-    # read_clusters(f"clusters_{subject}.pickle")
+    # show_clusters(f"clusters_{subject}.pickle")
 
-    # Salvo le immagini
-    original_image, reconstructed_image = visually_check_reconstruction_skill(vae, x_test)
+    # Salvo le immagini - su server
+    original_image, reconstructed_image = reconstruction_skill(vae, x_test)
+    original_image_file_name = "original.npy"
+    print("Saving original.npy and reconstructed.npy")
     np.save("original.npy", original_image)
     np.save("reconstructed.npy", reconstructed_image)
 
-    # Mostra l'immagine originale - solo su client
-    """plt.clf()
-    plt.title(f"Original image")
-    original_image = np.load("original.npy")
-    plt.imshow(original_image, cmap="gray")
-    plt.show()
+    # Mostra l'immagine originale e quella ricostruita - solo su client
+    """show_original("original.npy")
+    show_reconstructed("reconstructed.npy") """
 
-    # Mostra l'immagine ricostruita - solo su client
-    plt.clf()
+    # Mostro SSIM
+    original_image = np.load("original.npy")
     reconstructed_image = np.load("reconstructed.npy")
     ssim = my_ssim(original_image, reconstructed_image)
-    plt.title(f"Reconstructed image, SSIM = {ssim}")
-    plt.imshow(reconstructed_image, cmap="gray")
-    plt.show()"""
+    print("SSIM", ssim)
+
+    print("\nFinished. You can transfer clusters, original and reconstructed data to client for showing them")

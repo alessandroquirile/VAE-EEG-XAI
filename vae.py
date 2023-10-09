@@ -325,7 +325,7 @@ def refit(fitted_grid, x_train, y_train, latent_dimension):
     return history, vae
 
 
-def visually_check_reconstruction_skill(vae, x_test):
+def reconstruction_skill(vae, x_test):
     image_index = 5
     original_image = x_test[image_index]
     x_test_reconstructed = vae.predict(x_test)
