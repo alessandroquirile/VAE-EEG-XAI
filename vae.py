@@ -521,19 +521,19 @@ class Encoder(keras.layers.Layer):
         seed = 42
 
         self.conv1 = Conv2D(filters=64, kernel_size=3, activation="relu", strides=2, padding="same",
-                            kernel_initializer=he_uniform(seed))
+                            kernel_initializer=he_uniform(seed), kernel_regularizer="l1")
         self.bn1 = BatchNormalization()
 
         self.conv2 = Conv2D(filters=128, kernel_size=3, activation="relu", strides=2, padding="same",
-                            kernel_initializer=he_uniform(seed))
+                            kernel_initializer=he_uniform(seed), kernel_regularizer="l1")
         self.bn2 = BatchNormalization()
 
         self.conv3 = Conv2D(filters=256, kernel_size=3, activation="relu", strides=2, padding="same",
-                            kernel_initializer=he_uniform(seed))
+                            kernel_initializer=he_uniform(seed), kernel_regularizer="l1")
         self.bn3 = BatchNormalization()
 
         self.flatten = Flatten()
-        self.dense = Dense(units=100, activation="relu")
+        self.dense = Dense(units=100, activation="relu", kernel_regularizer="l1")
 
         self.z_mean = Dense(latent_dimension, name="z_mean")
         self.z_log_var = Dense(latent_dimension, name="z_log_var")
@@ -559,40 +559,40 @@ class Encoder(keras.layers.Layer):
 class Decoder(keras.layers.Layer):
     def __init__(self):
         super(Decoder, self).__init__()
-        self.dense1 = Dense(units=4096, activation="relu")
+        self.dense1 = Dense(units=4096, activation="relu", kernel_regularizer="l1")
         self.bn1 = BatchNormalization()
 
-        self.dense2 = Dense(units=1024, activation="relu")
+        self.dense2 = Dense(units=1024, activation="relu", kernel_regularizer="l1")
         self.bn2 = BatchNormalization()
 
-        self.dense3 = Dense(units=4096, activation="relu")
+        self.dense3 = Dense(units=4096, activation="relu", kernel_regularizer="l1")
         self.bn3 = BatchNormalization()
 
         seed = 42
 
         self.reshape = Reshape((4, 4, 256))
         self.deconv1 = Conv2DTranspose(filters=256, kernel_size=3, activation="relu", strides=2, padding="same",
-                                       kernel_initializer=he_uniform(seed))
+                                       kernel_initializer=he_uniform(seed), kernel_regularizer="l1")
         self.bn4 = BatchNormalization()
 
         self.deconv2 = Conv2DTranspose(filters=128, kernel_size=3, activation="relu", strides=1, padding="same",
-                                       kernel_initializer=he_uniform(seed))
+                                       kernel_initializer=he_uniform(seed), kernel_regularizer="l1")
         self.bn5 = BatchNormalization()
 
         self.deconv3 = Conv2DTranspose(filters=128, kernel_size=3, activation="relu", strides=2, padding="valid",
-                                       kernel_initializer=he_uniform(seed))
+                                       kernel_initializer=he_uniform(seed), kernel_regularizer="l1")
         self.bn6 = BatchNormalization()
 
         self.deconv4 = Conv2DTranspose(filters=64, kernel_size=3, activation="relu", strides=1, padding="valid",
-                                       kernel_initializer=he_uniform(seed))
+                                       kernel_initializer=he_uniform(seed), kernel_regularizer="l1")
         self.bn7 = BatchNormalization()
 
         self.deconv5 = Conv2DTranspose(filters=64, kernel_size=3, activation="relu", strides=2, padding="valid",
-                                       kernel_initializer=he_uniform(seed))
+                                       kernel_initializer=he_uniform(seed), kernel_regularizer="l1")
         self.bn8 = BatchNormalization()
 
         self.deconv6 = Conv2DTranspose(filters=1, kernel_size=2, activation="sigmoid", padding="valid",
-                                       kernel_initializer=he_uniform(seed))
+                                       kernel_initializer=he_uniform(seed), kernel_regularizer="l1")
 
     def call(self, inputs, training=None, mask=None):
         x = self.dense1(inputs)

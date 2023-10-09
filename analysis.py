@@ -46,7 +46,7 @@ def avg_score_dbg():
         score = my_ssim(x_val_fold, predicted)
         scores.append(score)
     avg_score = np.mean(scores)
-    print(f"[dbg] avg_score (ssim) for current combination on folds: {avg_score:.5f}\n")
+    print(f"[dbg] avg_score (ssim) for current combination on folds is {avg_score:.5f}\n")
 
 
 if __name__ == '__main__':
