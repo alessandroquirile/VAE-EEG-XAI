@@ -206,10 +206,11 @@ def plot_label_clusters(vae, data, labels):
     n_colors = len(distinct_labels)
 
     # Create the plot
-    plt.figure(figsize=(10, 8))
+    fig = plt.figure(figsize=(10, 8))
     sns.scatterplot(data=df, x="comp-1", y="comp-2", hue=df.labels.tolist(),
                     palette=sns.color_palette("hls", n_colors)).set(title="Data t-SNE projection")
-    plt.show()
+    # plt.show()
+    return fig
 
 
 def plot_metric(history, metric):
@@ -326,6 +327,13 @@ def refit(fitted_grid, x_train, y_train, latent_dimension):
 
 def visually_check_reconstruction_skill(vae, x_test):
     image_index = 5
+    original_image = x_test[image_index]
+    x_test_reconstructed = vae.predict(x_test)
+    reconstructed_image = x_test_reconstructed[image_index]
+    # ssim = my_ssim(original_image, reconstructed_image)
+    return original_image, reconstructed_image
+
+    """image_index = 5
     plt.title(f"Original image {image_index}")
     original_image = x_test[image_index]
     plt.imshow(original_image, cmap="gray")
@@ -338,10 +346,7 @@ def visually_check_reconstruction_skill(vae, x_test):
         f"Reconstructed image {image_index}, latent_dim = {vae.encoder.latent_dim}, batch_size = {vae.batch_size},"
         f"epochs = {vae.epochs}, l_rate = {vae.l_rate}, patience = {vae.patience}, ssim = {ssim}")
     plt.imshow(reconstructed_image, cmap="gray")
-    plt.show()
-
-    # np.save("original.npy", original_image)  # dbg
-    # np.save("reconstructed.npy", reconstructed_image)  # dbg
+    plt.show()"""
 
 
 class CustomGridSearchCV:

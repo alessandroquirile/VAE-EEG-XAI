@@ -1,3 +1,5 @@
+import matplotlib.pyplot as plt
+
 from vae import *
 
 
@@ -8,6 +10,15 @@ def check_weights_equality(w_before_path, vae):
     for tensor_num, (w_before, w_after) in enumerate(zip(w_before, w_after), start=1):
         if not w_before.all() == w_after.all():
             raise Exception(f"Weights loading was unsuccessful for tensor {tensor_num}")
+
+def save_clusters(clusters, subject):
+    with open(f"clusters_{subject}.pickle", "wb") as fp:
+        pickle.dump(clusters, fp)
+
+def read_clusters(clusters_path):
+    with open(clusters_path, "rb") as fp:
+        pickle.load(fp)
+    plt.show()
 
 
 if __name__ == '__main__':
@@ -51,7 +62,6 @@ if __name__ == '__main__':
     check_weights_equality(f"w_before_{subject}.pickle", vae)
 
     # Verifica SSIM medio per la combinazione corrente
-    # dbg
     cv = KFold(n_splits=3, shuffle=True, random_state=42)
     scores = []
     for train_idx, val_idx in cv.split(x_train):
@@ -62,5 +72,29 @@ if __name__ == '__main__':
     avg_score = np.mean(scores)
     print(f"[dbg] avg_score (ssim) for current combination: {avg_score:.5f}")
 
-    # plot_label_clusters(vae, x_test, y_test)
-    # visually_check_reconstruction_skill(vae, x_train)
+    # Salvo i cluster
+    # clusters = plot_label_clusters(vae, x_test, y_test)
+    # save_clusters(clusters, subject)
+
+    # Leggo i cluster - solo su client
+    # read_clusters(f"clusters_{subject}.pickle")
+
+    # Salvo le immagini
+    original_image, reconstructed_image = visually_check_reconstruction_skill(vae, x_test)
+    np.save("original.npy", original_image)
+    np.save("reconstructed.npy", reconstructed_image)
+
+    # Mostra l'immagine originale - solo su client
+    """plt.clf()
+    plt.title(f"Original image")
+    original_image = np.load("original.npy")
+    plt.imshow(original_image, cmap="gray")
+    plt.show()
+
+    # Mostra l'immagine ricostruita - solo su client
+    plt.clf()
+    reconstructed_image = np.load("reconstructed.npy")
+    ssim = my_ssim(original_image, reconstructed_image)
+    plt.title(f"Reconstructed image, SSIM = {ssim}")
+    plt.imshow(reconstructed_image, cmap="gray")
+    plt.show()"""
