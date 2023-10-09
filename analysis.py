@@ -46,7 +46,7 @@ def avg_score_dbg():
         score = my_ssim(x_val_fold, predicted)
         scores.append(score)
     avg_score = np.mean(scores)
-    print(f"[dbg] avg_score (ssim) for current combination: {avg_score:.5f}\n")
+    print(f"[dbg] avg_score (ssim) for current combination on folds: {avg_score:.5f}\n")
 
 
 if __name__ == '__main__':
@@ -101,10 +101,20 @@ if __name__ == '__main__':
     """show_original("original.npy")
     show_reconstructed("reconstructed.npy") """
 
-    # Calcolo SSIM
+    # Calcolo SSIM su un campione casuale del test set
     original_image = np.load("original.npy")
     reconstructed_image = np.load("reconstructed.npy")
     ssim = my_ssim(original_image, reconstructed_image)
-    print("SSIM", ssim)
+    print("\nSSIM on random test sample is", ssim)
+
+    # Calcolo SSIM sull'intero test test
+    ssim_scores = []
+    for i in range(len(x_test)):
+        original = x_test[i]
+        reconstructed = vae.predict(np.expand_dims(original, axis=0), verbose=0)  # (1, 40, 40, 1)
+        ssim_score = my_ssim(original, reconstructed[0])  # (40, 40, 1)
+        ssim_scores.append(ssim_score)
+    avg_ssim = np.mean(ssim_scores)
+    print(f"avg_score (ssim) on test set is {avg_ssim}")
 
     print("\nFinished. You can transfer clusters, original and reconstructed data to client for showing them")
