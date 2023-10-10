@@ -131,7 +131,7 @@ if __name__ == '__main__':
     x_test = normalize(x_test)
 
     # Grid search
-    latent_dimension = 25
+    latent_dimension = 28
     grid = custom_grid_search(x_train, latent_dimension)  # By me
     # grid = grid_search_vae(x_train, latent_dimension)  # By sklearn
 

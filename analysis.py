@@ -71,7 +71,8 @@ if __name__ == '__main__':
     x_test = normalize(x_test)
 
     # Loading saved weights
-    encoder = Encoder(25)
+    latent_dimension = 28
+    encoder = Encoder(latent_dimension)
     decoder = Decoder()
     vae = VAE(encoder, decoder)
     vae.compile(Adam(1e-05))
