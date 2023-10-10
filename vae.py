@@ -271,7 +271,7 @@ def grid_search_vae(x_train, latent_dimension):
     return grid
 
 
-def custom_grid_search(x_train, latent_dimensions):
+def custom_grid_search(x_train, latent_dimension):
     param_grid = {
         'epochs': [2500],
         'l_rate': [10 ** -5, 10 ** -6, 10 ** -7],
@@ -282,7 +282,7 @@ def custom_grid_search(x_train, latent_dimensions):
     print("\nCustom grid search with param_grid: ", param_grid)
 
     grid_search = CustomGridSearchCV(param_grid)
-    grid_search.fit(x_train, latent_dimensions)
+    grid_search.fit(x_train, latent_dimension)
 
     return grid_search
 
@@ -356,7 +356,7 @@ class CustomGridSearchCV:
         self.best_score_ = None
         self.grid_ = []
 
-    def fit(self, x_train, latent_dimensions):
+    def fit(self, x_train, latent_dimension):
         param_combinations = list(product(*self.param_grid.values()))
         n_combinations = len(param_combinations)
 
@@ -373,7 +373,7 @@ class CustomGridSearchCV:
             for train_idx, val_idx in cv.split(x_train):
                 x_train_fold, x_val_fold = x_train[train_idx], x_train[val_idx]
 
-                encoder = Encoder(latent_dimensions)
+                encoder = Encoder(latent_dimension)
                 decoder = Decoder()
                 vae = VAE(encoder, decoder, params_dict['epochs'], params_dict['l_rate'], params_dict['batch_size'])
                 vae.compile(Adam(params_dict['l_rate']))
@@ -691,8 +691,6 @@ if __name__ == '__main__':
     w_before = vae.get_weights()
     with open(f"w_before_{subject}.pickle", "wb") as fp:
         pickle.dump(w_before, fp)
-
-    print(f"Finished training. You can transfer w_before_{subject}.pickle to client for consistency check")
 
     # plot_metric(history, "loss")
     # plot_metric(history, "reconstruction_loss")

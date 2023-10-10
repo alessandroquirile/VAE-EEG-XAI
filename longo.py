@@ -14,21 +14,21 @@ class Encoder(keras.layers.Layer):
         n_filters = 40
 
         self.conv1 = Sequential([
-            Conv2D(filters=n_filters, kernel_size=(3,3), activation="relu", strides=2, padding="same",
+            Conv2D(filters=n_filters, kernel_size=(3, 3), activation="relu", strides=2, padding="same",
                    kernel_initializer=he_uniform(seed), kernel_regularizer="l1"),
             BatchNormalization(),
             MaxPooling2D((2, 2), padding='same')
         ])
 
         self.conv2 = Sequential([
-            Conv2D(filters=n_filters * 2, kernel_size=(3,3), activation="relu", strides=2, padding="same",
+            Conv2D(filters=n_filters * 2, kernel_size=(3, 3), activation="relu", strides=2, padding="same",
                    kernel_initializer=he_uniform(seed), kernel_regularizer="l1"),
             BatchNormalization(),
             MaxPooling2D((2, 2), padding='same')
         ])
 
         self.conv3 = Sequential([
-            Conv2D(filters=n_filters * 3, kernel_size=(3,3), activation="relu", strides=2, padding="same",
+            Conv2D(filters=n_filters * 3, kernel_size=(3, 3), activation="relu", strides=2, padding="same",
                    kernel_initializer=he_uniform(seed), kernel_regularizer="l1"),
             BatchNormalization(),
             MaxPooling2D((2, 2), padding='same')
@@ -108,9 +108,9 @@ if __name__ == '__main__':
     x_train, x_test, y_train, y_test = load_data(topomaps_folder, labels_folder, 0.2, False)
 
     # I am reducing the size of data set for speed purposes. For tests only
-    new_size = 200
-    x_train, y_train = reduce_size(x_train, y_train, new_size)
-    x_test, y_test = reduce_size(x_test, y_test, new_size)
+    # new_size = 200
+    # x_train, y_train = reduce_size(x_train, y_train, new_size)
+    # x_test, y_test = reduce_size(x_test, y_test, new_size)
 
     # Expand dimensions to (None, 40, 40, 1)
     # This is because VAE is currently working with 4d tensors
@@ -143,5 +143,3 @@ if __name__ == '__main__':
     w_before = vae.get_weights()
     with open(f"w_before_{subject}.pickle", "wb") as fp:
         pickle.dump(w_before, fp)
-
-    print(f"Finished training. You can transfer w_before_{subject}.pickle to client for consistency check")
