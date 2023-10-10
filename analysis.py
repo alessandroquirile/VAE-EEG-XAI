@@ -1,6 +1,3 @@
-import matplotlib.pyplot as plt
-import numpy as np
-
 from vae import *
 
 
@@ -12,15 +9,18 @@ def check_weights_equality(w_before_path, vae):
         if not w_before.all() == w_after.all():
             raise Exception(f"Weights loading was unsuccessful for tensor {tensor_num}")
 
+
 def save_clusters(file_name):
     print(f"Saving {file_name}\n")
     with open(file_name, "wb") as fp:
         pickle.dump(clusters, fp)
 
+
 def show_clusters(clusters_path):
     with open(clusters_path, "rb") as fp:
         pickle.load(fp)
     plt.show()
+
 
 def show_original(topomap_path):
     plt.clf()
@@ -28,6 +28,7 @@ def show_original(topomap_path):
     original_image = np.load(topomap_path)
     plt.imshow(original_image, cmap="gray")
     plt.show()
+
 
 def show_reconstructed(topomap_path):
     plt.clf()
