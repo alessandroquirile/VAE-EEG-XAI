@@ -6,20 +6,16 @@ from itertools import product
 import numpy as np
 import pandas as pd
 import seaborn as sns
-import tensorflow as tf
-from keras.initializers import he_uniform
-from keras.layers import Conv2DTranspose, BatchNormalization, Reshape, Dense, Conv2D, Flatten
 from keras.optimizers.legacy import Adam
 from keras.src.callbacks import EarlyStopping
 from matplotlib import pyplot as plt
-from skimage.metrics import structural_similarity as ssim
-from sklearn.base import BaseEstimator
+from skimage.metrics import structural_similarity as ssim, mean_squared_error
 from sklearn.manifold import TSNE
-from sklearn.metrics import mean_absolute_error, make_scorer
-from sklearn.model_selection import train_test_split, GridSearchCV, KFold
-from tensorflow import keras
+from sklearn.model_selection import train_test_split, KFold
 from tensorflow.python.ops.numpy_ops import np_config
 from tqdm import tqdm
+
+from models import *
 
 
 def load_data(topomaps_folder: str, labels_folder: str, test_size, anomaly_detection):
@@ -83,30 +79,12 @@ def _create_dataset(topomaps_folder, labels_folder):
     return x, y
 
 
-def flat_mae(x, y):
-    return mean_absolute_error(y.flatten(), x.flatten())
-
-
-def my_ssim(original, reconstructed):
+def scaled_ssim(original, reconstructed):
     # data_range=1 requires the data to be normalized between 0 and 1
     original = normalize(original)
     reconstructed = normalize(reconstructed)
-    return ssim(original, reconstructed, data_range=1, channel_axis=-1)
-
-
-def sample(z_mean, z_log_var):
-    """
-    Generates random samples from a Gaussian distribution using the reparameterization trick.
-
-    :param z_mean: (tf.Tensor) A tensor representing the mean of the distribution. Shape: [batch_size, dim]
-    :param z_log_var: (tf.Tensor) A tensor representing the logarithm of the variance of the distribution. Shape: [batch_size, dim]
-    :return: (tf.Tensor) A tensor containing the generated samples. Shape: [batch_size, dim]
-    """
-    batch = tf.shape(z_mean)[0]
-    dim = tf.shape(z_mean)[1]
-    epsilon = tf.random.normal(shape=(batch, dim))
-    stddev = tf.exp(0.5 * z_log_var)
-    return z_mean + stddev * epsilon
+    score = ssim(original, reconstructed, data_range=1, channel_axis=-1)
+    return (score + 1) / 2  # The reference paper deals with ssim between 0 and 1 instead of -1 and 1
 
 
 def plot_latent_space(vae, data, points_to_sample=30, figsize=15):
@@ -247,30 +225,6 @@ def normalize(x):
     return (x - np.min(x)) / (np.max(x) - np.min(x))
 
 
-def grid_search_vae(x_train, latent_dimension):
-    param_grid = {
-        'epochs': [2500],
-        'l_rate': [10 ** -5, 10 ** -6, 10 ** -7],
-        'batch_size': [32, 64, 128],
-        'patience': [30]
-    }
-
-    print("\nGridSearchCV: I am tuning the hyper parameters:", param_grid)
-
-    # If we use multi-metric evaluation, and refit=False, we cannot access grid.best_params_
-    # refit=True raises problems with TensorFlow models. So let's use single-metric evaluation (ssim only)
-    # mae_scorer = make_scorer(flat_mae, greater_is_better=False)
-    ssim_scorer = make_scorer(my_ssim, greater_is_better=True)
-
-    grid = GridSearchCV(
-        VAEWrapper(encoder=Encoder(latent_dimension), decoder=Decoder()),
-        param_grid, scoring=ssim_scorer, cv=3, refit=False
-    )
-
-    grid.fit(x_train, x_train)
-    return grid
-
-
 def custom_grid_search(x_train, latent_dimension):
     param_grid = {
         'epochs': [2500],
@@ -279,7 +233,8 @@ def custom_grid_search(x_train, latent_dimension):
         'patience': [30]
     }
 
-    print("\nCustom grid search with param_grid: ", param_grid)
+    print("\nlatent_dimension:", latent_dimension)
+    print("Custom grid search with param_grid:", param_grid)
 
     grid_search = CustomGridSearchCV(param_grid)
     grid_search.fit(x_train, latent_dimension)
@@ -313,14 +268,21 @@ def refit(fitted_grid, x_train, y_train, latent_dimension):
 
     # dbg
     cv = KFold(n_splits=3, shuffle=True, random_state=42)
-    scores = []
+    ssim_scores = []
+    mse_scores = []
     for train_idx, val_idx in cv.split(x_train):
         x_train_fold, x_val_fold = x_train[train_idx], x_train[val_idx]
         predicted = vae.predict(x_val_fold)
-        score = my_ssim(x_val_fold, predicted)
-        scores.append(score)
-    avg_score = np.mean(scores)
-    print(f"[dbg] avg_score (ssim) for current (best) combination after FIT: {avg_score:.5f}")
+        ssim = scaled_ssim(x_val_fold, predicted)
+        mse = mean_squared_error(x_val_fold, predicted)
+        ssim_scores.append(ssim)
+        mse_scores.append(mse)
+    avg_ssim = np.mean(ssim_scores)
+    avg_mse = np.mean(mse_scores)
+    avg_score = (avg_ssim + avg_mse) / 2
+    print(f"[dbg] avg_ssim for best combination after fit: {avg_ssim:.4f}")
+    print(f"[dbg] avg_mse for best combination after fit: {avg_mse:.4f}")
+    print(f"[dbg] avg_score for best combination after fit: {avg_score:.4f}")
 
     return history, vae
 
@@ -332,21 +294,6 @@ def reconstruction_skill(vae, x_test):
     reconstructed_image = x_test_reconstructed[image_index]
     # ssim = my_ssim(original_image, reconstructed_image)
     return original_image, reconstructed_image
-
-    """image_index = 5
-    plt.title(f"Original image {image_index}")
-    original_image = x_test[image_index]
-    plt.imshow(original_image, cmap="gray")
-    plt.show()
-
-    x_test_reconstructed = vae.predict(x_test)
-    reconstructed_image = x_test_reconstructed[image_index]
-    ssim = my_ssim(original_image, reconstructed_image)
-    plt.title(
-        f"Reconstructed image {image_index}, latent_dim = {vae.encoder.latent_dim}, batch_size = {vae.batch_size},"
-        f"epochs = {vae.epochs}, l_rate = {vae.l_rate}, patience = {vae.patience}, ssim = {ssim}")
-    plt.imshow(reconstructed_image, cmap="gray")
-    plt.show()"""
 
 
 class CustomGridSearchCV:
@@ -362,13 +309,14 @@ class CustomGridSearchCV:
 
         n_splits = 3
         print("n_splits:", n_splits)
-        print("scorer:", my_ssim)
+        print(f"scorer(s): {scaled_ssim} and {mean_squared_error}")
 
         for params in tqdm(param_combinations, total=n_combinations, desc="Combination", unit="combination"):
             params_dict = dict(zip(self.param_grid.keys(), params))
 
             cv = KFold(n_splits=n_splits, shuffle=True, random_state=42)
-            scores = []
+            ssim_scores = []
+            mse_scores = []
 
             for train_idx, val_idx in cv.split(x_train):
                 x_train_fold, x_val_fold = x_train[train_idx], x_train[val_idx]
@@ -383,8 +331,10 @@ class CustomGridSearchCV:
                         validation_data=(x_val_fold, x_val_fold), callbacks=[early_stopping], verbose=0)
 
                 predicted = vae.predict(x_val_fold)
-                score = my_ssim(x_val_fold, predicted)
-                scores.append(score)
+                ssim = scaled_ssim(x_val_fold, predicted)
+                mse = mean_squared_error(x_val_fold, predicted)
+                ssim_scores.append(ssim)
+                mse_scores.append(mse)
 
                 # Clear the TensorFlow session to free GPU memory
                 # https://stackoverflow.com/a/52354943/17082611
@@ -392,11 +342,18 @@ class CustomGridSearchCV:
                 del encoder, decoder, vae
                 gc.collect()
 
-            avg_score = np.mean(scores)
+            avg_ssim = np.mean(ssim_scores)
+            avg_mse = np.mean(mse_scores)
+            avg_score = (avg_ssim + avg_mse) / 2
+
             params_dict['avg_score'] = avg_score
+            params_dict['ssim'] = avg_ssim
+            params_dict['mse'] = avg_mse
             self.grid_.append(params_dict)
 
-            print(f"avg_score (ssim) for current combination: {avg_score:.5f}")
+            print(f"avg_ssim for current combination: {avg_score:.4f}")
+            print(f"avg_mse for current combination: {avg_mse:.4f}")
+            print(f"avg_score for current combination: {avg_score:.4f}")
 
             # Update the best hyperparameters based on the highest SSIM score
             if self.best_score_ is None or avg_score > self.best_score_:
@@ -406,242 +363,9 @@ class CustomGridSearchCV:
         return self
 
 
-class VAEWrapper:
-    def __init__(self, **kwargs):
-        self.vae = VAE(**kwargs)
-        self.vae.compile(Adam())
-
-    def fit(self, x, y, **kwargs):
-        self.vae.fit(x, y, **kwargs)
-
-    def get_config(self):
-        return self.vae.get_config()
-
-    def get_params(self, deep):
-        return self.vae.get_params(deep)
-
-    def set_params(self, **params):
-        return self.vae.set_params(**params)
-
-
-class VAE(keras.Model, BaseEstimator):
-    def __init__(self, encoder, decoder, epochs=None, l_rate=None, batch_size=None, patience=None, **kwargs):
-        super().__init__(**kwargs)
-        self.encoder = encoder
-        self.decoder = decoder
-        self.epochs = epochs  # For grid search
-        self.l_rate = l_rate  # For grid search
-        self.batch_size = batch_size  # For grid search
-        self.patience = patience  # For grid search
-        self.total_loss_tracker = keras.metrics.Mean(name="total_loss")
-        self.reconstruction_loss_tracker = keras.metrics.Mean(name="reconstruction_loss")
-        self.kl_loss_tracker = keras.metrics.Mean(name="kl_loss")
-
-    def call(self, inputs, training=None, mask=None):
-        _, _, z = self.encoder(inputs)
-        outputs = self.decoder(z)
-        return outputs
-
-    @property
-    def metrics(self):
-        return [
-            self.total_loss_tracker,
-            self.reconstruction_loss_tracker,
-            self.kl_loss_tracker,
-        ]
-
-    def train_step(self, data):
-        data, labels = data
-        with tf.GradientTape() as tape:
-            # Forward pass
-            z_mean, z_log_var, z = self.encoder(data)
-            reconstruction = self.decoder(z)
-
-            # Compute losses
-            reconstruction_loss = tf.reduce_mean(
-                tf.reduce_sum(
-                    keras.losses.binary_crossentropy(data, reconstruction), axis=(1, 2)
-                )
-            )
-            kl_loss = -0.5 * (1 + z_log_var - tf.square(z_mean) - tf.exp(z_log_var))
-            kl_loss = tf.reduce_mean(tf.reduce_sum(kl_loss, axis=1))
-            total_loss = reconstruction_loss + kl_loss
-
-        # Compute gradient
-        grads = tape.gradient(total_loss, self.trainable_weights)
-
-        # Update weights
-        self.optimizer.apply_gradients(zip(grads, self.trainable_weights))
-
-        # Update metrics
-        self.total_loss_tracker.update_state(total_loss)
-        self.reconstruction_loss_tracker.update_state(reconstruction_loss)
-        self.kl_loss_tracker.update_state(kl_loss)
-
-        return {
-            "loss": self.total_loss_tracker.result(),
-            "reconstruction_loss": self.reconstruction_loss_tracker.result(),
-            "kl_loss": self.kl_loss_tracker.result(),
-        }
-
-    def test_step(self, data):
-        data, labels = data
-        # Forward pass
-        z_mean, z_log_var, z = self.encoder(data)
-        reconstruction = self.decoder(z)
-
-        # Compute losses
-        reconstruction_loss = tf.reduce_mean(
-            tf.reduce_sum(
-                keras.losses.binary_crossentropy(data, reconstruction), axis=(1, 2)
-            )
-        )
-        kl_loss = -0.5 * (1 + z_log_var - tf.square(z_mean) - tf.exp(z_log_var))
-        kl_loss = tf.reduce_mean(tf.reduce_sum(kl_loss, axis=1))
-        total_loss = reconstruction_loss + kl_loss
-
-        # Update metrics
-        self.total_loss_tracker.update_state(total_loss)
-        self.reconstruction_loss_tracker.update_state(reconstruction_loss)
-        self.kl_loss_tracker.update_state(kl_loss)
-
-        return {
-            "loss": self.total_loss_tracker.result(),
-            "reconstruction_loss": self.reconstruction_loss_tracker.result(),
-            "kl_loss": self.kl_loss_tracker.result(),
-        }
-
-
-@keras.saving.register_keras_serializable()
-class Encoder(keras.layers.Layer):
-    def __init__(self, latent_dimension):
-        super(Encoder, self).__init__()
-        self.latent_dim = latent_dimension
-
-        seed = 42
-
-        self.conv1 = Conv2D(filters=64, kernel_size=3, activation="relu", strides=2, padding="same",
-                            kernel_initializer=he_uniform(seed), kernel_regularizer="l1")
-        self.bn1 = BatchNormalization()
-
-        self.conv2 = Conv2D(filters=128, kernel_size=3, activation="relu", strides=2, padding="same",
-                            kernel_initializer=he_uniform(seed), kernel_regularizer="l1")
-        self.bn2 = BatchNormalization()
-
-        self.conv3 = Conv2D(filters=256, kernel_size=3, activation="relu", strides=2, padding="same",
-                            kernel_initializer=he_uniform(seed), kernel_regularizer="l1")
-        self.bn3 = BatchNormalization()
-
-        self.flatten = Flatten()
-        self.dense = Dense(units=100, activation="relu", kernel_regularizer="l1")
-
-        self.z_mean = Dense(latent_dimension, name="z_mean")
-        self.z_log_var = Dense(latent_dimension, name="z_log_var")
-
-        self.sampling = sample
-
-    def call(self, inputs, training=None, mask=None):
-        x = self.conv1(inputs)
-        x = self.bn1(x)
-        x = self.conv2(x)
-        x = self.bn2(x)
-        x = self.conv3(x)
-        x = self.bn3(x)
-        x = self.flatten(x)
-        x = self.dense(x)
-        z_mean = self.z_mean(x)
-        z_log_var = self.z_log_var(x)
-        z = self.sampling(z_mean, z_log_var)
-        return z_mean, z_log_var, z
-
-
-@keras.saving.register_keras_serializable()
-class Decoder(keras.layers.Layer):
-    def __init__(self):
-        super(Decoder, self).__init__()
-        self.dense1 = Dense(units=4096, activation="relu", kernel_regularizer="l1")
-        self.bn1 = BatchNormalization()
-
-        self.dense2 = Dense(units=1024, activation="relu", kernel_regularizer="l1")
-        self.bn2 = BatchNormalization()
-
-        self.dense3 = Dense(units=4096, activation="relu", kernel_regularizer="l1")
-        self.bn3 = BatchNormalization()
-
-        seed = 42
-
-        self.reshape = Reshape((4, 4, 256))
-        self.deconv1 = Conv2DTranspose(filters=256, kernel_size=3, activation="relu", strides=2, padding="same",
-                                       kernel_initializer=he_uniform(seed), kernel_regularizer="l1")
-        self.bn4 = BatchNormalization()
-
-        self.deconv2 = Conv2DTranspose(filters=128, kernel_size=3, activation="relu", strides=1, padding="same",
-                                       kernel_initializer=he_uniform(seed), kernel_regularizer="l1")
-        self.bn5 = BatchNormalization()
-
-        self.deconv3 = Conv2DTranspose(filters=128, kernel_size=3, activation="relu", strides=2, padding="valid",
-                                       kernel_initializer=he_uniform(seed), kernel_regularizer="l1")
-        self.bn6 = BatchNormalization()
-
-        self.deconv4 = Conv2DTranspose(filters=64, kernel_size=3, activation="relu", strides=1, padding="valid",
-                                       kernel_initializer=he_uniform(seed), kernel_regularizer="l1")
-        self.bn7 = BatchNormalization()
-
-        self.deconv5 = Conv2DTranspose(filters=64, kernel_size=3, activation="relu", strides=2, padding="valid",
-                                       kernel_initializer=he_uniform(seed), kernel_regularizer="l1")
-        self.bn8 = BatchNormalization()
-
-        self.deconv6 = Conv2DTranspose(filters=1, kernel_size=2, activation="sigmoid", padding="valid",
-                                       kernel_initializer=he_uniform(seed), kernel_regularizer="l1")
-
-    def call(self, inputs, training=None, mask=None):
-        x = self.dense1(inputs)
-        x = self.bn1(x)
-        x = self.dense2(x)
-        x = self.bn2(x)
-        x = self.dense3(x)
-        x = self.bn3(x)
-        x = self.reshape(x)
-        x = self.deconv1(x)
-        x = self.bn4(x)
-        x = self.deconv2(x)
-        x = self.bn5(x)
-        x = self.deconv3(x)
-        x = self.bn6(x)
-        x = self.deconv4(x)
-        x = self.bn7(x)
-        x = self.deconv5(x)
-        x = self.bn8(x)
-        decoder_outputs = self.deconv6(x)
-        return decoder_outputs
-
-
 def save(history, subject):
     with open(f'history_{subject}.pickle', 'wb') as file_pi:
         pickle.dump(history.history, file_pi)
-
-
-def set_server_config():
-    os.environ['CUDA_VISIBLE_DEVICES'] = '1'  # "0" first GPU
-    # "1" second GPU (se c'è altrimenti usa la CPU)
-    # "-1" CPU
-    import tensorflow as tf  # importare dopo aver settato il device
-    gpus = tf.config.list_physical_devices('GPU')
-    if gpus:
-        try:
-            # Currently, memory growth needs to be the same across GPUs
-            for gpu in gpus:
-                tf.config.experimental.set_memory_growth(gpu, True)
-            logical_gpus = tf.config.list_logical_devices('GPU')
-            print(len(gpus), "Physical GPUs,", len(logical_gpus), "Logical GPUs")
-        except RuntimeError as e:
-            # Memory growth must be set before GPUs have been initialized
-            print(e)
-
-    tf.compat.v1.disable_eager_execution()
-    tf.executing_eagerly()
-    tf.compat.v1.global_variables()
-    tf.executing_eagerly()
 
 
 if __name__ == '__main__':
@@ -671,16 +395,16 @@ if __name__ == '__main__':
     print("x_test shape:", x_test.shape)
     print("y_test shape:", y_test.shape)
 
-    # Normalization
+    # Normalization between 0 and 1
+    # TODO: check normalizzazione "a monte"
     x_train = normalize(x_train)
     x_test = normalize(x_test)
 
     # Grid search
-    latent_dimension = 28
-    grid = custom_grid_search(x_train, latent_dimension)  # By me
-    # grid = grid_search_vae(x_train, latent_dimension)  # By sklearn
+    latent_dimension = 800  # TODO: provare 40x40/2=800 e dimezzare finché le prestazioni sono ok
+    grid = custom_grid_search(x_train, latent_dimension)
 
-    # Manually refit, since refit=True raises problems with TensorFlow models
+    # Refit
     history, vae = refit(grid, x_train, y_train, latent_dimension)
     save(history, subject)
     vae.save_weights(f"checkpoints/vae_{subject}", save_format='tf')
@@ -694,9 +418,4 @@ if __name__ == '__main__':
 
     # plot_metric(history, "loss")
     # plot_metric(history, "reconstruction_loss")
-    # plot_metric(history, "kl_loss")
-
-    # plot_latent_space(vae, x_train)
-    # plot_label_clusters(vae, x_train, y_train)
-
-    # visually_check_reconstruction_skill(vae, x_test)
+    # plot_metric(history, "kl_loss")"""

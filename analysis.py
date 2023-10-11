@@ -1,4 +1,4 @@
-from vae import *
+from train import *
 
 
 def check_weights_equality(w_before_path, vae):
@@ -40,14 +40,21 @@ def show_reconstructed(topomap_path):
 
 def avg_score_dbg():
     cv = KFold(n_splits=3, shuffle=True, random_state=42)
-    scores = []
+    ssim_scores = []
+    mse_scores = []
     for train_idx, val_idx in cv.split(x_train):
         x_train_fold, x_val_fold = x_train[train_idx], x_train[val_idx]
         predicted = vae.predict(x_val_fold)
-        score = my_ssim(x_val_fold, predicted)
-        scores.append(score)
-    avg_score = np.mean(scores)
-    print(f"[dbg] avg_score (ssim) for current combination on folds is {avg_score}\n")
+        ssim = scaled_ssim(x_val_fold, predicted)
+        mse = mean_squared_error(x_val_fold, predicted)
+        ssim_scores.append(ssim)
+        mse_scores.append(mse)
+    avg_ssim = np.mean(ssim_scores)
+    avg_mse = np.mean(mse_scores)
+    avg_score = (avg_ssim + avg_mse) / 2
+    print(f"[dbg] avg_ssim for best combination on folds: {avg_ssim:.4f}")
+    print(f"[dbg] avg_mse for best combination on folds: {avg_mse:.4f}")
+    print(f"[dbg] avg_score for best combination on folds: {avg_score:.4f}\n")
 
 
 if __name__ == '__main__':
@@ -71,11 +78,12 @@ if __name__ == '__main__':
     x_test = normalize(x_test)
 
     # Loading saved weights
-    latent_dimension = 28
+    latent_dimension = 800
+    best_l_rate = 1e-05
     encoder = Encoder(latent_dimension)
     decoder = Decoder()
     vae = VAE(encoder, decoder)
-    vae.compile(Adam(1e-05))
+    vae.compile(Adam(best_l_rate))
     vae.train_on_batch(x_train[:1], x_train[:1])  # Fondamentale per evitare i warning
     vae.load_weights(f"checkpoints/vae_{subject}")
 
@@ -106,17 +114,28 @@ if __name__ == '__main__':
     # Calcolo SSIM su un campione casuale del test set
     original_image = np.load("original.npy")
     reconstructed_image = np.load("reconstructed.npy")
-    ssim = my_ssim(original_image, reconstructed_image)
-    print("\nSSIM on random test sample is", ssim)
+    ssim = scaled_ssim(original_image, reconstructed_image)
+    mse = mean_squared_error(original_image, reconstructed_image)
+    score = (ssim + mse) / 2
+    print(f"\nssim on random test sample: {ssim:.4f}")
+    print(f"mse on random test sample: {mse:.4f}")
+    print(f"score on random test sample: {score:.4f}")
 
     # Calcolo SSIM sull'intero test test
     ssim_scores = []
+    mse_scores = []
     for i in range(len(x_test)):
         original = x_test[i]
         reconstructed = vae.predict(np.expand_dims(original, axis=0), verbose=0)  # (1, 40, 40, 1)
-        ssim_score = my_ssim(original, reconstructed[0])  # (40, 40, 1)
+        ssim_score = scaled_ssim(original, reconstructed[0])  # reconstructed[0] shape is (40, 40, 1)
+        mse_score = mean_squared_error(original_image, reconstructed[0])
         ssim_scores.append(ssim_score)
+        mse_scores.append(mse_score)
     avg_ssim = np.mean(ssim_scores)
-    print(f"avg_score (ssim) on test set is {avg_ssim}")
+    avg_mse = np.mean(mse_scores)
+    avg_score = (avg_ssim + avg_mse) / 2
+    print(f"\navg_ssim on test set: {avg_ssim:.4f}")
+    print(f"avg_mse on test set: {avg_mse:.4f}")
+    print(f"avg_score on test set: {avg_score:.4f}")
 
     print("\nFinished. You can transfer clusters, original and reconstructed data to client for showing them")
