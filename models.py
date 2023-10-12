@@ -155,7 +155,6 @@ class VAE(Model):
             # Compute losses
             reconstruction_loss = tf.reduce_mean(
                 tf.reduce_sum(
-                    # TODO: provare mse
                     keras.losses.binary_crossentropy(data, reconstruction), axis=(1, 2)
                 )
             )
@@ -189,7 +188,6 @@ class VAE(Model):
         # Compute losses
         reconstruction_loss = tf.reduce_mean(
             tf.reduce_sum(
-                # TODO: provare mse
                 keras.losses.binary_crossentropy(data, reconstruction), axis=(1, 2)
             )
         )

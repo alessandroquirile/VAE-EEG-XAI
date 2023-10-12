@@ -78,7 +78,7 @@ if __name__ == '__main__':
     x_test = normalize(x_test)
 
     # Loading saved weights
-    latent_dimension = 800
+    latent_dimension = 28
     best_l_rate = 1e-05
     encoder = Encoder(latent_dimension)
     decoder = Decoder()

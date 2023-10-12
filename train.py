@@ -309,7 +309,7 @@ class CustomGridSearchCV:
 
         n_splits = 3
         print("n_splits:", n_splits)
-        print(f"scorer(s): {scaled_ssim} and {mean_squared_error}")
+        print(f"scorers: {scaled_ssim} and {mean_squared_error}")
 
         for params in tqdm(param_combinations, total=n_combinations, desc="Combination", unit="combination"):
             params_dict = dict(zip(self.param_grid.keys(), params))
@@ -355,7 +355,7 @@ class CustomGridSearchCV:
             print(f"avg_mse for current combination: {avg_mse:.4f}")
             print(f"avg_score for current combination: {avg_score:.4f}")
 
-            # Update the best hyperparameters based on the highest SSIM score
+            # Update the best hyperparameters based on the highest avg_score
             if self.best_score_ is None or avg_score > self.best_score_:
                 self.best_score_ = avg_score
                 self.best_params_ = params_dict
@@ -401,7 +401,7 @@ if __name__ == '__main__':
     x_test = normalize(x_test)
 
     # Grid search
-    latent_dimension = 800  # TODO: provare 40x40/2=800 e dimezzare finché le prestazioni sono ok
+    latent_dimension = 28
     grid = custom_grid_search(x_train, latent_dimension)
 
     # Refit
