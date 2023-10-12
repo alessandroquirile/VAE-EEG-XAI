@@ -292,7 +292,6 @@ def reconstruction_skill(vae, x_test):
     original_image = x_test[image_index]
     x_test_reconstructed = vae.predict(x_test, verbose=0)
     reconstructed_image = x_test_reconstructed[image_index]
-    # ssim = my_ssim(original_image, reconstructed_image)
     return original_image, reconstructed_image
 
 
