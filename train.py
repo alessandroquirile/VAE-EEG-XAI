@@ -279,7 +279,8 @@ def refit(fitted_grid, x_train, y_train, latent_dimension):
         mse_scores.append(mse)
     avg_ssim = np.mean(ssim_scores)
     avg_mse = np.mean(mse_scores)
-    avg_score = (avg_ssim + avg_mse) / 2
+    # avg_score = (avg_ssim + avg_mse) / 2
+    avg_score = avg_ssim / (avg_mse + 1)
     print(f"[dbg] avg_ssim for best combination after fit: {avg_ssim:.4f}")
     print(f"[dbg] avg_mse for best combination after fit: {avg_mse:.4f}")
     print(f"[dbg] avg_score for best combination after fit: {avg_score:.4f}")
@@ -343,7 +344,8 @@ class CustomGridSearchCV:
 
             avg_ssim = np.mean(ssim_scores)
             avg_mse = np.mean(mse_scores)
-            avg_score = (avg_ssim + avg_mse) / 2
+            # avg_score = (avg_ssim + avg_mse) / 2
+            avg_score = avg_ssim / (avg_mse + 1)
 
             params_dict['avg_score'] = avg_score
             params_dict['ssim'] = avg_ssim

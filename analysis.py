@@ -51,7 +51,8 @@ def avg_score_dbg():
         mse_scores.append(mse)
     avg_ssim = np.mean(ssim_scores)
     avg_mse = np.mean(mse_scores)
-    avg_score = (avg_ssim + avg_mse) / 2
+    # avg_score = (avg_ssim + avg_mse) / 2
+    avg_score = avg_ssim / (avg_mse + 1)
     print(f"[dbg] avg_ssim for best combination on folds: {avg_ssim:.4f}")
     print(f"[dbg] avg_mse for best combination on folds: {avg_mse:.4f}")
     print(f"[dbg] avg_score for best combination on folds: {avg_score:.4f}\n")
@@ -133,7 +134,8 @@ if __name__ == '__main__':
         mse_scores.append(mse_score)
     avg_ssim = np.mean(ssim_scores)
     avg_mse = np.mean(mse_scores)
-    avg_score = (avg_ssim + avg_mse) / 2
+    # avg_score = (avg_ssim + avg_mse) / 2
+    avg_score = avg_ssim / (avg_mse + 1)
     print(f"\navg_ssim on test set: {avg_ssim:.4f}")
     print(f"avg_mse on test set: {avg_mse:.4f}")
     print(f"avg_score on test set: {avg_score:.4f}")
