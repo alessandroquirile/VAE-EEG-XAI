@@ -1,3 +1,6 @@
+import keras
+from keras import Input
+
 from train import *
 
 
@@ -58,6 +61,121 @@ def avg_score_dbg():
     print(f"[dbg] avg_score for best combination on folds: {avg_score:.4f}\n")
 
 
+def calculate_score(original, reconstructed):
+    original_image = np.load(original)
+    reconstructed_image = np.load(reconstructed)
+    ssim = scaled_ssim(original_image, reconstructed_image)
+    mse = mean_squared_error(original_image, reconstructed_image)
+    score = ssim / (mse + 1)
+    print(f"\nssim on random test sample: {ssim:.4f}")
+    print(f"mse on random test sample: {mse:.4f}")
+    print(f"score on random test sample: {score:.4f}")
+
+
+def calculate_score_test_set(x_test):
+    ssim_scores = []
+    mse_scores = []
+    for i in range(len(x_test)):
+        original = x_test[i]
+        reconstructed = vae.predict(np.expand_dims(original, axis=0), verbose=0)  # (1, 40, 40, 1)
+        ssim_score = scaled_ssim(original, reconstructed[0])  # reconstructed[0] shape is (40, 40, 1)
+        mse_score = mean_squared_error(original_image, reconstructed[0])
+        ssim_scores.append(ssim_score)
+        mse_scores.append(mse_score)
+    avg_ssim = np.mean(ssim_scores)
+    avg_mse = np.mean(mse_scores)
+    # avg_score = (avg_ssim + avg_mse) / 2
+    avg_score = avg_ssim / (avg_mse + 1)
+    print(f"\navg_ssim on test set: {avg_ssim:.4f}")
+    print(f"avg_mse on test set: {avg_mse:.4f}")
+    print(f"avg_score on test set: {avg_score:.4f}")
+
+
+def histogram_25_75(vae, x_test, y_test):
+    z_mean, z_log_var, _ = vae.encoder(x_test)
+
+    no_blink = []
+    blink = []
+    trans = []
+    for i in range(0, len(y_test)):
+        if y_test[i] == 0:
+            no_blink.append(x_test[i])
+        if y_test[i] == 1:
+            blink.append(x_test[i])
+        if y_test[i] == 2:
+            trans.append(x_test[i])
+    blink = np.array(blink)
+    no_blink = np.array(no_blink)
+    trans = np.array(trans)
+
+    print('Il numero di blink è:', len(blink))
+    print('Il numero di non blink è:', len(no_blink))
+    print('Il numero di transizioni è:', len(trans))
+
+    z_mean_blink, z_log_var_blink, _ = vae.encoder(blink)
+    z_mean_no_blink, z_log_var_no_blink, _ = vae.encoder(no_blink)
+    z_mean_trans, z_log_var_trans, _ = vae.encoder(trans)
+
+    quantile_25 = np.quantile(z_mean, .25, axis=0)
+    quantile_75 = np.quantile(z_log_var, .75, axis=0)
+    num_rows = 7
+    num_cols = 4
+    fig, axes = plt.subplots(num_rows, num_cols, figsize=(15, 20))
+    for j in range(0, z_mean_blink.shape[1]):
+
+        # print (f'latent component {j+1}')
+        true_blink = 0
+        negative_blink = 0
+        negative_noblink = 0
+        true_noblink = 0
+
+        for i in range(0, z_mean_blink.shape[0]):
+            # print(quantile_25[j])
+            # print(z_mean_blink[i,j])
+            # print(quantile_75[j])
+            if z_mean_blink[i, j] <= quantile_25[j] or z_mean_blink[i, j] >= quantile_75[j]:
+                # print("Out")
+                true_blink = true_blink + 1
+            else:
+                negative_blink = negative_blink + 1
+
+        # print('True positive (TP):',true_blink)
+        # print('False negative (FN):',negative_blink)
+
+        for z in range(0, z_mean_no_blink.shape[0]):
+            # print(quantile_25[j])
+            # print(z_mean_blink[i,j])
+            # print(quantile_75[j])
+            if z_mean_no_blink[z, j] > quantile_25[j] and z_mean_no_blink[z, j] < quantile_75[j]:
+                true_noblink = true_noblink + 1
+            else:
+                negative_noblink = negative_noblink + 1
+
+                # print('True negative (TN):',true_noblink)
+        # print('False positive (FP):',negative_noblink)
+
+        row_index = j // num_cols
+        col_index = j % num_cols
+
+        ax = axes[row_index, col_index]
+        ax.set_title(f'histogram latent component {j + 1}')
+        ax.hist(z_mean_blink[:, j], bins=100, color='green', alpha=0.6,
+                label=f'Blink-TP:{true_blink}-FN:{negative_blink}')
+        ax.hist(z_mean_no_blink[:, j], bins=100, color='violet', alpha=0.6,
+                label=f'No Blink-TN:{true_noblink}-FP:{negative_noblink}')
+        ax.hist(z_mean_trans[:, j], bins=100, color='yellow', alpha=0.6, label='Transizioni')
+
+        ax.axvline(quantile_25[j], color='black', linestyle='-', label='Quantile 25')
+        ax.axvline(quantile_75[j], color='blue', linestyle='-', label='Quantile 75')
+
+        ax.legend()
+
+    plt.tight_layout()
+
+    fig.savefig('histogram_25_75.png')
+    print("histogram_25_75.png saved")
+
+
 if __name__ == '__main__':
     print("TensorFlow GPU usage:", tf.config.list_physical_devices('GPU'))
 
@@ -112,32 +230,13 @@ if __name__ == '__main__':
     """show_original("original.npy")
     show_reconstructed("reconstructed.npy") """
 
-    # Calcolo SSIM su un campione casuale del test set
-    original_image = np.load("original.npy")
-    reconstructed_image = np.load("reconstructed.npy")
-    ssim = scaled_ssim(original_image, reconstructed_image)
-    mse = mean_squared_error(original_image, reconstructed_image)
-    score = (ssim + mse) / 2
-    print(f"\nssim on random test sample: {ssim:.4f}")
-    print(f"mse on random test sample: {mse:.4f}")
-    print(f"score on random test sample: {score:.4f}")
+    # Calcolo score su un campione casuale del test set
+    calculate_score("original.npy", "reconstructed.npy")
 
-    # Calcolo SSIM sull'intero test test
-    ssim_scores = []
-    mse_scores = []
-    for i in range(len(x_test)):
-        original = x_test[i]
-        reconstructed = vae.predict(np.expand_dims(original, axis=0), verbose=0)  # (1, 40, 40, 1)
-        ssim_score = scaled_ssim(original, reconstructed[0])  # reconstructed[0] shape is (40, 40, 1)
-        mse_score = mean_squared_error(original_image, reconstructed[0])
-        ssim_scores.append(ssim_score)
-        mse_scores.append(mse_score)
-    avg_ssim = np.mean(ssim_scores)
-    avg_mse = np.mean(mse_scores)
-    # avg_score = (avg_ssim + avg_mse) / 2
-    avg_score = avg_ssim / (avg_mse + 1)
-    print(f"\navg_ssim on test set: {avg_ssim:.4f}")
-    print(f"avg_mse on test set: {avg_mse:.4f}")
-    print(f"avg_score on test set: {avg_score:.4f}")
+    # Calcolo score sull'intero test test
+    calculate_score_test_set(x_test)
 
     print("\nFinished. You can transfer clusters, original and reconstructed data to client for showing them")
+
+    # ISTOGRAMMI
+    histogram_25_75(vae, x_test, y_test)
