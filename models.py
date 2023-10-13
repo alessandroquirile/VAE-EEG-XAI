@@ -3,7 +3,7 @@ from keras import Sequential, Model
 from keras.initializers import he_uniform
 from keras.layers import BatchNormalization, Reshape, Dense, Conv2D, Flatten
 from keras.layers import Layer
-from keras.src.layers import MaxPooling2D, UpSampling2D
+from keras.src.layers import MaxPooling2D, UpSampling2D, Conv2DTranspose
 from tensorflow import keras
 
 
@@ -23,7 +23,7 @@ def sample(z_mean, z_log_var):
 
 
 # MODELLO COME NEL PAPER
-@keras.saving.register_keras_serializable()
+"""@keras.saving.register_keras_serializable()
 class Encoder(Layer):
     def __init__(self, latent_dimension):
         super(Encoder, self).__init__()
@@ -116,7 +116,7 @@ class Decoder(Layer):
         x = self.deconv2(x)
         x = self.deconv3(x)
         outputs = self.deconv4(x)
-        return outputs
+        return outputs"""
 
 
 class VAE(Model):
@@ -208,107 +208,105 @@ class VAE(Model):
 
 
 # QUESTI SONO I MIEI MODELLI
-"""@keras.saving.register_keras_serializable()
-class Encoder(keras.layers.Layer):
+@keras.saving.register_keras_serializable()
+class Encoder(Layer):
     def __init__(self, latent_dimension):
         super(Encoder, self).__init__()
         self.latent_dim = latent_dimension
 
         seed = 42
 
-        # TODO: rimuovere l1
-        self.conv1 = Conv2D(filters=64, kernel_size=3, activation="relu", strides=2, padding="same",
-                            kernel_initializer=he_uniform(seed), kernel_regularizer="l1")
-        self.bn1 = BatchNormalization()
+        self.conv1 = Sequential([
+            Conv2D(filters=64, kernel_size=3, activation="relu", strides=2, padding="same",
+                   kernel_initializer=he_uniform(seed)),
+            BatchNormalization()
+        ])
 
-        self.conv2 = Conv2D(filters=128, kernel_size=3, activation="relu", strides=2, padding="same",
-                            kernel_initializer=he_uniform(seed), kernel_regularizer="l1")
-        self.bn2 = BatchNormalization()
+        self.conv2 = Sequential([
+            Conv2D(filters=128, kernel_size=3, activation="relu", strides=2, padding="same",
+                   kernel_initializer=he_uniform(seed)),
+            BatchNormalization()
+        ])
 
-        self.conv3 = Conv2D(filters=256, kernel_size=3, activation="relu", strides=2, padding="same",
-                            kernel_initializer=he_uniform(seed), kernel_regularizer="l1")
-        self.bn3 = BatchNormalization()
+        self.conv3 = Sequential([
+            Conv2D(filters=256, kernel_size=3, activation="relu", strides=2, padding="same",
+                   kernel_initializer=he_uniform(seed)),
+            BatchNormalization()
+        ])
 
         self.flatten = Flatten()
-        self.dense = Dense(units=100, activation="relu", kernel_regularizer="l1")
+        self.dense = Dense(units=100, activation="relu")
 
         self.z_mean = Dense(latent_dimension, name="z_mean")
         self.z_log_var = Dense(latent_dimension, name="z_log_var")
-
         self.sampling = sample
 
     def call(self, inputs, training=None, mask=None):
         x = self.conv1(inputs)
-        x = self.bn1(x)
         x = self.conv2(x)
-        x = self.bn2(x)
         x = self.conv3(x)
-        x = self.bn3(x)
         x = self.flatten(x)
         x = self.dense(x)
         z_mean = self.z_mean(x)
         z_log_var = self.z_log_var(x)
-        # TODO: se durante training fai reparam; altrimenti restituisci solo le medie
         z = self.sampling(z_mean, z_log_var)
         return z_mean, z_log_var, z
 
 
 @keras.saving.register_keras_serializable()
-class Decoder(keras.layers.Layer):
+class Decoder(Layer):
     def __init__(self):
         super(Decoder, self).__init__()
-        self.dense1 = Dense(units=4096, activation="relu", kernel_regularizer="l1")
-        self.bn1 = BatchNormalization()
-
-        self.dense2 = Dense(units=1024, activation="relu", kernel_regularizer="l1")
-        self.bn2 = BatchNormalization()
-
-        self.dense3 = Dense(units=4096, activation="relu", kernel_regularizer="l1")
-        self.bn3 = BatchNormalization()
 
         seed = 42
 
+        self.dense = Sequential([
+            Dense(units=4096, activation="relu"),
+            BatchNormalization()
+        ])
+
         self.reshape = Reshape((4, 4, 256))
-        self.deconv1 = Conv2DTranspose(filters=256, kernel_size=3, activation="relu", strides=2, padding="same",
-                                       kernel_initializer=he_uniform(seed), kernel_regularizer="l1")
-        self.bn4 = BatchNormalization()
 
-        self.deconv2 = Conv2DTranspose(filters=128, kernel_size=3, activation="relu", strides=1, padding="same",
-                                       kernel_initializer=he_uniform(seed), kernel_regularizer="l1")
-        self.bn5 = BatchNormalization()
+        self.deconv1 = Sequential([
+            Conv2DTranspose(filters=256, kernel_size=3, activation="relu", strides=2, padding="same",
+                            kernel_initializer=he_uniform(seed)),
+            BatchNormalization()
+        ])
 
-        self.deconv3 = Conv2DTranspose(filters=128, kernel_size=3, activation="relu", strides=2, padding="valid",
-                                       kernel_initializer=he_uniform(seed), kernel_regularizer="l1")
-        self.bn6 = BatchNormalization()
+        self.deconv2 = Sequential([
+            Conv2DTranspose(filters=128, kernel_size=3, activation="relu", strides=1, padding="same",
+                            kernel_initializer=he_uniform(seed)),
+            BatchNormalization()
+        ])
 
-        self.deconv4 = Conv2DTranspose(filters=64, kernel_size=3, activation="relu", strides=1, padding="valid",
-                                       kernel_initializer=he_uniform(seed), kernel_regularizer="l1")
-        self.bn7 = BatchNormalization()
+        self.deconv3 = Sequential([
+            Conv2DTranspose(filters=128, kernel_size=3, activation="relu", strides=2, padding="valid",
+                            kernel_initializer=he_uniform(seed)),
+            BatchNormalization()
+        ])
 
-        self.deconv5 = Conv2DTranspose(filters=64, kernel_size=3, activation="relu", strides=2, padding="valid",
-                                       kernel_initializer=he_uniform(seed), kernel_regularizer="l1")
-        self.bn8 = BatchNormalization()
+        self.deconv4 = Sequential([
+            Conv2DTranspose(filters=64, kernel_size=3, activation="relu", strides=1, padding="valid",
+                            kernel_initializer=he_uniform(seed)),
+            BatchNormalization()
+        ])
+
+        self.deconv5 = Sequential([
+            Conv2DTranspose(filters=64, kernel_size=3, activation="relu", strides=2, padding="valid",
+                            kernel_initializer=he_uniform(seed)),
+            BatchNormalization()
+        ])
 
         self.deconv6 = Conv2DTranspose(filters=1, kernel_size=2, activation="sigmoid", padding="valid",
-                                       kernel_initializer=he_uniform(seed), kernel_regularizer="l1")
+                                       kernel_initializer=he_uniform(seed))
 
     def call(self, inputs, training=None, mask=None):
-        x = self.dense1(inputs)
-        x = self.bn1(x)
-        x = self.dense2(x)
-        x = self.bn2(x)
-        x = self.dense3(x)
-        x = self.bn3(x)
+        x = self.dense(inputs)
         x = self.reshape(x)
         x = self.deconv1(x)
-        x = self.bn4(x)
         x = self.deconv2(x)
-        x = self.bn5(x)
         x = self.deconv3(x)
-        x = self.bn6(x)
         x = self.deconv4(x)
-        x = self.bn7(x)
         x = self.deconv5(x)
-        x = self.bn8(x)
-        decoder_outputs = self.deconv6(x)
-        return decoder_outputs"""
+        outputs = self.deconv6(x)
+        return outputs
