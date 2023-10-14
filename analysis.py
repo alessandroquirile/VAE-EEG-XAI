@@ -2,6 +2,7 @@ import keras
 from keras import Input
 
 from train import *
+from sklearn.metrics import roc_auc_score
 
 
 def check_weights_equality(w_before_path, vae):
@@ -88,10 +89,10 @@ def calculate_score_test_set(x_test):
     avg_score = avg_ssim / (avg_mse + 1)
     print(f"\navg_ssim on test set: {avg_ssim:.4f}")
     print(f"avg_mse on test set: {avg_mse:.4f}")
-    print(f"avg_score on test set: {avg_score:.4f}")
+    print(f"avg_score on test set: {avg_score:.4f}\n")
 
 
-def histogram_25_75(vae, x_test, y_test):
+def histogram_25_75(vae, x_test, y_test, latent_dim, subject):
     z_mean, z_log_var, _ = vae.encoder(x_test)
 
     no_blink = []
@@ -172,8 +173,80 @@ def histogram_25_75(vae, x_test, y_test):
 
     plt.tight_layout()
 
-    fig.savefig('histogram_25_75.png')
-    print("histogram_25_75.png saved")
+    fig.savefig(f'histogram_25_75_{subject}.png')
+    print(f"histogram_25_75_{subject}.png saved")
+
+    n_intervalli = 9
+
+    M = np.zeros((latent_dim, n_intervalli * 2))
+    start = 0.05
+    end = 0.95
+    step = 0.05
+    Q = np.arange(start, end + step, step)
+
+    i = 0
+    for q in Q:
+        # print("q",q)
+        if q != 0.5:
+            # print("i",i)
+            M[:, i] = np.quantile(z_mean, q, axis=0)
+            i = i + 1
+    quantile_matrix = M
+    return quantile_matrix, z_mean_blink, z_mean_no_blink, z_mean_trans
+
+
+def roc_auc(quantile_matrix, z_mean_blink, z_mean_no_blink, subject):
+    num_rows = 7
+    num_cols = 4
+
+    fig, axes = plt.subplots(num_rows, num_cols, figsize=(15, 20))
+
+    for j in range(z_mean_blink.shape[1]):
+        FPR = []
+        TPR = []
+        for q in range(0, int(quantile_matrix.shape[1] / 2)):
+            true_blink = 0  # TP
+            negative_blink = 0  # FN
+            negative_noblink = 0  # FP
+            true_noblink = 0  # TN
+
+            for i in range(0, z_mean_blink.shape[0]):
+                if z_mean_blink[i, j] <= quantile_matrix[j, q] or z_mean_blink[i, j] >= quantile_matrix[j, -q - 1]:
+                    true_blink = true_blink + 1
+                else:
+                    negative_blink = negative_blink + 1
+
+            for z in range(0, z_mean_no_blink.shape[0]):
+                if quantile_matrix[j, q] < z_mean_no_blink[z, j] < quantile_matrix[j, -q - 1]:
+                    true_noblink = true_noblink + 1
+                else:
+                    negative_noblink = negative_noblink + 1
+
+            FPR.append(negative_noblink / (negative_noblink + true_noblink))  # FP/(FP+TN)
+            TPR.append(true_blink / (true_blink + negative_blink))  # TP/(TP+FN)
+
+        # AUC
+        auc = roc_auc_score(np.concatenate((np.zeros(len(FPR)), np.ones(len(TPR)))), np.concatenate((FPR, TPR)))
+
+        # Calcoliamo l'indice di riga e colonna del subplot
+        row_index = j // num_cols
+        col_index = j % num_cols
+
+        # Disegniamo la curva ROC sul subplot corrispondente
+        ax = axes[row_index, col_index]
+        ax.plot(FPR, TPR, color='b', label=f'Curva ROC - AUC: {auc:.2f}')
+        ax.plot([0, 1], [0, 1], color='gray', linestyle='--')
+
+        ax.set_xlabel('False Positive Rate (FPR)')
+        ax.set_ylabel('True Positive Rate (TPR)')
+        ax.set_title(f'Colonna - latent component {j + 1}')
+        ax.legend(loc='lower right')
+
+    # Impostiamo lo spazio tra i subplot
+    plt.tight_layout()
+
+    fig.savefig(f'curve_ROC_{subject}.png')
+    print(f"curve_ROC_{subject}.png saved")
 
 
 if __name__ == '__main__':
@@ -236,7 +309,8 @@ if __name__ == '__main__':
     # Calcolo score sull'intero test test
     calculate_score_test_set(x_test)
 
-    print("\nFinished. You can transfer clusters, original and reconstructed data to client for showing them")
+    # Grafici
+    quantile_matrix, z_mean_blink, z_mean_no_blink, _ = histogram_25_75(vae, x_test, y_test, latent_dimension, subject)
+    roc_auc(quantile_matrix, z_mean_blink, z_mean_no_blink, subject)
 
-    # ISTOGRAMMI
-    histogram_25_75(vae, x_test, y_test)
+    print("\nFinished. You can transfer clusters, original, reconstructed data and png to client for showing them")
