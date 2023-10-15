@@ -1,8 +1,7 @@
-import keras
-from keras import Input
+from scipy.stats import skew
+from sklearn.metrics import roc_auc_score
 
 from train import *
-from sklearn.metrics import roc_auc_score
 
 
 def check_weights_equality(w_before_path, vae):
@@ -192,7 +191,7 @@ def histogram_25_75(vae, x_test, y_test, latent_dim, subject):
             M[:, i] = np.quantile(z_mean, q, axis=0)
             i = i + 1
     quantile_matrix = M
-    return quantile_matrix, z_mean_blink, z_mean_no_blink, z_mean_trans
+    return quantile_matrix, z_mean, z_mean_blink, z_mean_no_blink, z_mean_trans
 
 
 def roc_auc(quantile_matrix, z_mean_blink, z_mean_no_blink, subject):
@@ -247,6 +246,34 @@ def roc_auc(quantile_matrix, z_mean_blink, z_mean_no_blink, subject):
 
     fig.savefig(f'curve_ROC_{subject}.png')
     print(f"curve_ROC_{subject}.png saved")
+
+
+def print_latent_components_decreasing_variance(z_mean):
+    # Calcola la varianza delle colonne dell'array z_mean_val lungo l'asse 0
+    variance = np.var(z_mean, axis=0)
+    print('\nVarianza:', variance)
+
+    # Crea una lista di tuple contenenti l'indice della colonna e il valore di varianza
+    indexed_variances = list(enumerate(variance))  # (indice, valore)
+
+    # Ordina le tuple in indexed_variances in base al valore di varianza, in ordine decrescente
+    sorted_variances = sorted(indexed_variances, key=lambda x: x[1], reverse=True)
+
+    # Estrae gli indici delle colonne ordinate in base alla varianza
+    sorted_indices = [index for index, _ in sorted_variances]
+
+    # Estrae i valori di varianza ordinati corrispondenti agli indici
+    sorted_variance_vector = [variance for _, variance in sorted_variances]
+
+    # Stampa gli indici delle colonne in base alla varianza ordinata
+    print("Indici ordinati:", sorted_indices)
+
+    # Stampa i valori di varianza corrispondenti agli indici ordinati
+    print("Varianza ordinata:", sorted_variance_vector)
+
+    # Calcola la skewness delle colonne dell'array z_mean_val lungo l'asse 0
+    skewness = skew(z_mean, axis=0)
+    print('Skewness:', skewness)
 
 
 if __name__ == '__main__':
@@ -309,8 +336,18 @@ if __name__ == '__main__':
     # Calcolo score sull'intero test test
     calculate_score_test_set(x_test)
 
-    # Grafici
-    quantile_matrix, z_mean_blink, z_mean_no_blink, _ = histogram_25_75(vae, x_test, y_test, latent_dimension, subject)
+    # For each latent component a histogram is created for analyzing the test data distribution
+    # The 25th and 75th percentiles are computed for each latent component in order to understand whether
+    # Blinks are located outside tha range
+    # For each histogram a confusion matrix is also computed
+    quantile_matrix, z_mean, z_mean_blink, z_mean_no_blink, _ = histogram_25_75(vae, x_test, y_test,
+                                                                                latent_dimension, subject)
+
+    # For each latent component the ROC-AUC curve is created for detecting the quartile range which
+    # Maximizes the TPR (True Positive Rate)
     roc_auc(quantile_matrix, z_mean_blink, z_mean_no_blink, subject)
+
+    # Let's print the latent components based on decreasing variance
+    print_latent_components_decreasing_variance(z_mean)
 
     print("\nFinished. You can transfer clusters, original, reconstructed data and png to client for showing them")
