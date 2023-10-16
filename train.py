@@ -18,6 +18,9 @@ from tqdm import tqdm
 from models import *
 
 
+to_client = []  # List of file names that can be transferred to client
+
+
 def load_data(topomaps_folder: str, labels_folder: str, test_size, anomaly_detection):
     x, y = _create_dataset(topomaps_folder, labels_folder)
 
@@ -356,8 +359,10 @@ class CustomGridSearchCV:
 
 
 def save(history, subject):
-    with open(f'history_{subject}.pickle', 'wb') as file_pi:
+    file_name = f'history_{subject}.pickle'
+    with open(file_name, 'wb') as file_pi:
         pickle.dump(history.history, file_pi)
+    to_client.append(file_name)
 
 
 if __name__ == '__main__':
@@ -406,6 +411,8 @@ if __name__ == '__main__':
     w_before = vae.get_weights()
     with open(f"w_before_{subject}.pickle", "wb") as fp:
         pickle.dump(w_before, fp)
+
+    print(f"\nTraining finished. You can transfer to client: {to_client}")
 
     # plot_metric(history, "loss")
     # plot_metric(history, "reconstruction_loss")
