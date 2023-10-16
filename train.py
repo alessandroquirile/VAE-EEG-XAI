@@ -288,14 +288,6 @@ def refit(fitted_grid, x_train, y_train, latent_dimension):
     return history, vae
 
 
-def reconstruction_skill(vae, x_test):
-    image_index = 5
-    original_image = x_test[image_index]
-    x_test_reconstructed = vae.predict(x_test, verbose=0)
-    reconstructed_image = x_test_reconstructed[image_index]
-    return original_image, reconstructed_image
-
-
 class CustomGridSearchCV:
     def __init__(self, param_grid):
         self.param_grid = param_grid

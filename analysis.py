@@ -3,6 +3,8 @@ from sklearn.metrics import roc_auc_score
 
 from train import *
 
+can_be_transferred = []  # List of file names that can be transferred to client
+
 
 def check_weights_equality(w_before_path, vae):
     w_after = vae.get_weights()
@@ -14,9 +16,10 @@ def check_weights_equality(w_before_path, vae):
 
 
 def save_clusters(file_name):
-    print(f"Saving {file_name}\n")
+    # print(f"Saving {file_name}\n")
     with open(file_name, "wb") as fp:
         pickle.dump(clusters, fp)
+    can_be_transferred.append(file_name)
 
 
 def show_clusters(clusters_path):
@@ -25,19 +28,11 @@ def show_clusters(clusters_path):
     plt.show()
 
 
-def show_original(topomap_path):
+def show(topomap_path):
     plt.clf()
-    plt.title(f"Original image")
-    original_image = np.load(topomap_path)
-    plt.imshow(original_image, cmap="gray")
-    plt.show()
-
-
-def show_reconstructed(topomap_path):
-    plt.clf()
-    reconstructed_image = np.load(topomap_path)
-    plt.title(f"Reconstructed image")
-    plt.imshow(reconstructed_image, cmap="gray")
+    image = np.load(topomap_path)
+    plt.title(topomap_path)
+    plt.imshow(image, cmap="gray")
     plt.show()
 
 
@@ -172,8 +167,10 @@ def histogram_25_75(vae, x_test, y_test, latent_dim, subject):
 
     plt.tight_layout()
 
-    fig.savefig(f'histogram_25_75_{subject}.png')
-    print(f"histogram_25_75_{subject}.png saved")
+    histogram_file_name = f'histogram_25_75_{subject}.png'
+    fig.savefig(histogram_file_name)
+    # print(f"{histogram_file_name} saved")
+    can_be_transferred.append(histogram_file_name)
 
     n_intervalli = 9
 
@@ -244,8 +241,10 @@ def roc_auc(quantile_matrix, z_mean_blink, z_mean_no_blink, subject):
     # Impostiamo lo spazio tra i subplot
     plt.tight_layout()
 
-    fig.savefig(f'curve_ROC_{subject}.png')
-    print(f"curve_ROC_{subject}.png saved")
+    auc_roc_file_name = f"curve_auc_roc_{subject}.png"
+    fig.savefig(auc_roc_file_name)
+    # print(f"{auc_roc_file_name} saved")
+    can_be_transferred.append(auc_roc_file_name)
 
 
 def print_latent_components_decreasing_variance(z_mean):
@@ -274,6 +273,14 @@ def print_latent_components_decreasing_variance(z_mean):
     # Calcola la skewness delle colonne dell'array z_mean_val lungo l'asse 0
     skewness = skew(z_mean, axis=0)
     print('Skewness:', skewness)
+
+
+def get_original_and_reconstructed(vae, x_test):
+    image_index = 1
+    original_image = x_test[image_index]
+    x_test_reconstructed = vae.predict(x_test, verbose=0)
+    reconstructed_image = x_test_reconstructed[image_index]
+    return original_image, reconstructed_image
 
 
 if __name__ == '__main__':
@@ -314,24 +321,28 @@ if __name__ == '__main__':
 
     # Salvo i cluster - su server
     clusters = plot_label_clusters(vae, x_test, y_test)
-    save_clusters(f"clusters_{subject}.pickle")
+    clusters_file_name = f"clusters_{subject}.pickle"
+    save_clusters(clusters_file_name)
 
     # Leggo i cluster - solo su client
-    # show_clusters(f"clusters_{subject}.pickle")
+    # show_clusters(clusters_file_name)
 
     # Salvo le immagini - su server
-    original_image, reconstructed_image = reconstruction_skill(vae, x_test)
-    original_image_file_name = "original.npy"
-    print("Saving original.npy and reconstructed.npy")
-    np.save("original.npy", original_image)
-    np.save("reconstructed.npy", reconstructed_image)
+    original_image, reconstructed_image = get_original_and_reconstructed(vae, x_test)
+    original_file_name = "original.npy"
+    reconstructed_file_name = "reconstructed.npy"
+    # print(f"Saving {original_file_name} and {reconstructed_file_name}")
+    np.save(original_file_name, original_image)
+    np.save(reconstructed_file_name, reconstructed_image)
+    can_be_transferred.append(original_file_name)
+    can_be_transferred.append(reconstructed_file_name)
 
     # Mostra l'immagine originale e quella ricostruita - solo su client
-    """show_original("original.npy")
-    show_reconstructed("reconstructed.npy") """
+    """show(original_file_name)
+    show(reconstructed_file_name)"""
 
     # Calcolo score su un campione casuale del test set
-    calculate_score("original.npy", "reconstructed.npy")
+    calculate_score(original_file_name, reconstructed_file_name)
 
     # Calcolo score sull'intero test test
     calculate_score_test_set(x_test)
@@ -350,4 +361,4 @@ if __name__ == '__main__':
     # Let's print the latent components based on decreasing variance
     print_latent_components_decreasing_variance(z_mean)
 
-    print("\nFinished. You can transfer clusters, original, reconstructed data and png to client for showing them")
+    print(f"Finished. You can transfer to client: {can_be_transferred}")
