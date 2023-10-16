@@ -108,11 +108,10 @@ def label_clusters(vae, data, labels):
     return fig
 
 
-def plot_metric(history, metric):
-    # Usage: history is "history_{subject}.pickle"
+def plot_metric(history_path, metric):
+    # Usage: history_path is "history_{subject}.pickle"
     # Usage: metric is "loss", "reconstruction_loss" or "kl_loss"
-    # Legge dal pickle
-    with open(history, "rb") as fp:
+    with open(history_path, "rb") as fp:
         history_data = pickle.load(fp)
     plt.plot(history_data[metric])
     plt.plot(history_data['val_' + metric])
@@ -315,7 +314,7 @@ def histogram_25_75(vae, x_test, y_test, latent_dim, subject):
     return quantile_matrix, z_mean, z_mean_blink, z_mean_no_blink, z_mean_trans
 
 
-def roc_auc(quantile_matrix, z_mean_blink, z_mean_no_blink, subject):
+def auc_roc(quantile_matrix, z_mean_blink, z_mean_no_blink, subject):
     num_rows = 7
     num_cols = 4
 
@@ -485,7 +484,7 @@ if __name__ == '__main__':
 
     # For each latent component the ROC-AUC curve is created for detecting the quartile range which
     # Maximizes the TPR (True Positive Rate)
-    roc_auc(quantile_matrix, z_mean_blink, z_mean_no_blink, subject)
+    auc_roc(quantile_matrix, z_mean_blink, z_mean_no_blink, subject)
 
     # Let's print the latent components based on decreasing variance
     print_latent_components_decreasing_variance(z_mean)
