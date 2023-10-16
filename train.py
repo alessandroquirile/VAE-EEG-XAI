@@ -279,7 +279,6 @@ def refit(fitted_grid, x_train, y_train, latent_dimension):
         mse_scores.append(mse)
     avg_ssim = np.mean(ssim_scores)
     avg_mse = np.mean(mse_scores)
-    # avg_score = (avg_ssim + avg_mse) / 2
     avg_score = avg_ssim / (avg_mse + 1)
     print(f"[dbg] avg_ssim for best combination after fit: {avg_ssim:.4f}")
     print(f"[dbg] avg_mse for best combination after fit: {avg_mse:.4f}")
@@ -389,7 +388,6 @@ if __name__ == '__main__':
     print("y_test shape:", y_test.shape)
 
     # Normalization between 0 and 1
-    # TODO: check normalizzazione "a monte"
     x_train = normalize(x_train)
     x_test = normalize(x_test)
 

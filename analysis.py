@@ -3,7 +3,7 @@ from sklearn.metrics import roc_auc_score
 
 from train import *
 
-can_be_transferred = []  # List of file names that can be transferred to client
+to_client = []  # List of file names that can be transferred to client
 
 
 def check_weights_equality(w_before_path, vae):
@@ -16,10 +16,9 @@ def check_weights_equality(w_before_path, vae):
 
 
 def save_clusters(file_name):
-    # print(f"Saving {file_name}\n")
     with open(file_name, "wb") as fp:
         pickle.dump(clusters, fp)
-    can_be_transferred.append(file_name)
+    to_client.append(file_name)
 
 
 def show_clusters(clusters_path):
@@ -28,11 +27,28 @@ def show_clusters(clusters_path):
     plt.show()
 
 
-def show(topomap_path):
-    plt.clf()
-    image = np.load(topomap_path)
-    plt.title(topomap_path)
-    plt.imshow(image, cmap="gray")
+def show_topomaps(original_file_name, reconstructed_file_name):
+    # Carica l'immagine originale e quella ricostruita
+    original_image = np.load(original_file_name)
+    reconstructed_image = np.load(reconstructed_file_name)
+
+    # Calcolo SSIM, MSE e score
+    ssim, mse, score = calculate_score(original_image, reconstructed_image)
+
+    # Creare una figura con due sottoplot
+    plt.figure(figsize=(11, 5))
+
+    # Sottoplot per l'immagine originale
+    plt.subplot(1, 2, 1)
+    plt.title(original_file_name)
+    plt.imshow(original_image, cmap="gray")
+
+    # Sottoplot per l'immagine ricostruita
+    plt.subplot(1, 2, 2)
+    plt.title(f"{reconstructed_file_name} (SSIM = {ssim:.4f}, MSE = {mse:.4f}, score = {score:.4f})")
+    plt.imshow(reconstructed_image, cmap="gray")
+
+    # Mostra entrambe le immagini
     plt.show()
 
 
@@ -49,7 +65,6 @@ def avg_score_dbg():
         mse_scores.append(mse)
     avg_ssim = np.mean(ssim_scores)
     avg_mse = np.mean(mse_scores)
-    # avg_score = (avg_ssim + avg_mse) / 2
     avg_score = avg_ssim / (avg_mse + 1)
     print(f"[dbg] avg_ssim for best combination on folds: {avg_ssim:.4f}")
     print(f"[dbg] avg_mse for best combination on folds: {avg_mse:.4f}")
@@ -57,14 +72,10 @@ def avg_score_dbg():
 
 
 def calculate_score(original, reconstructed):
-    original_image = np.load(original)
-    reconstructed_image = np.load(reconstructed)
-    ssim = scaled_ssim(original_image, reconstructed_image)
-    mse = mean_squared_error(original_image, reconstructed_image)
+    ssim = scaled_ssim(original, reconstructed)
+    mse = mean_squared_error(original, reconstructed)
     score = ssim / (mse + 1)
-    print(f"\nssim on random test sample: {ssim:.4f}")
-    print(f"mse on random test sample: {mse:.4f}")
-    print(f"score on random test sample: {score:.4f}")
+    return ssim, mse, score
 
 
 def calculate_score_test_set(x_test):
@@ -73,17 +84,14 @@ def calculate_score_test_set(x_test):
     for i in range(len(x_test)):
         original = x_test[i]
         reconstructed = vae.predict(np.expand_dims(original, axis=0), verbose=0)  # (1, 40, 40, 1)
-        ssim_score = scaled_ssim(original, reconstructed[0])  # reconstructed[0] shape is (40, 40, 1)
-        mse_score = mean_squared_error(original_image, reconstructed[0])
-        ssim_scores.append(ssim_score)
-        mse_scores.append(mse_score)
+        ssim = scaled_ssim(original, reconstructed[0])  # reconstructed[0] shape is (40, 40, 1)
+        mse = mean_squared_error(original, reconstructed[0])
+        ssim_scores.append(ssim)
+        mse_scores.append(mse)
     avg_ssim = np.mean(ssim_scores)
     avg_mse = np.mean(mse_scores)
-    # avg_score = (avg_ssim + avg_mse) / 2
     avg_score = avg_ssim / (avg_mse + 1)
-    print(f"\navg_ssim on test set: {avg_ssim:.4f}")
-    print(f"avg_mse on test set: {avg_mse:.4f}")
-    print(f"avg_score on test set: {avg_score:.4f}\n")
+    return avg_ssim, avg_mse, avg_score
 
 
 def histogram_25_75(vae, x_test, y_test, latent_dim, subject):
@@ -169,8 +177,7 @@ def histogram_25_75(vae, x_test, y_test, latent_dim, subject):
 
     histogram_file_name = f'histogram_25_75_{subject}.png'
     fig.savefig(histogram_file_name)
-    # print(f"{histogram_file_name} saved")
-    can_be_transferred.append(histogram_file_name)
+    to_client.append(histogram_file_name)
 
     n_intervalli = 9
 
@@ -243,8 +250,7 @@ def roc_auc(quantile_matrix, z_mean_blink, z_mean_no_blink, subject):
 
     auc_roc_file_name = f"curve_auc_roc_{subject}.png"
     fig.savefig(auc_roc_file_name)
-    # print(f"{auc_roc_file_name} saved")
-    can_be_transferred.append(auc_roc_file_name)
+    to_client.append(auc_roc_file_name)
 
 
 def print_latent_components_decreasing_variance(z_mean):
@@ -328,24 +334,30 @@ if __name__ == '__main__':
     # show_clusters(clusters_file_name)
 
     # Salvo le immagini - su server
-    original_image, reconstructed_image = get_original_and_reconstructed(vae, x_test)
+    original, reconstructed = get_original_and_reconstructed(vae, x_test)
     original_file_name = "original.npy"
     reconstructed_file_name = "reconstructed.npy"
-    # print(f"Saving {original_file_name} and {reconstructed_file_name}")
-    np.save(original_file_name, original_image)
-    np.save(reconstructed_file_name, reconstructed_image)
-    can_be_transferred.append(original_file_name)
-    can_be_transferred.append(reconstructed_file_name)
+    np.save(original_file_name, original)
+    np.save(reconstructed_file_name, reconstructed)
+    to_client.append(original_file_name)
+    to_client.append(reconstructed_file_name)
 
     # Mostra l'immagine originale e quella ricostruita - solo su client
-    """show(original_file_name)
-    show(reconstructed_file_name)"""
+    # show_topomaps(original_file_name, reconstructed_file_name)
 
     # Calcolo score su un campione casuale del test set
-    calculate_score(original_file_name, reconstructed_file_name)
+    original = np.load(original_file_name)
+    reconstructed = np.load(reconstructed_file_name)
+    ssim, mse, score = calculate_score(original, reconstructed)
+    print(f"\nssim on random test sample: {ssim:.4f}")
+    print(f"mse on random test sample: {mse:.4f}")
+    print(f"score on random test sample: {score:.4f}")
 
-    # Calcolo score sull'intero test test
-    calculate_score_test_set(x_test)
+    # Calcolo score medio sull'intero test test
+    avg_ssim, avg_mse, avg_score = calculate_score_test_set(x_test)
+    print(f"\navg_ssim on test set: {avg_ssim:.4f}")
+    print(f"avg_mse on test set: {avg_mse:.4f}")
+    print(f"avg_score on test set: {avg_score:.4f}\n")
 
     # For each latent component a histogram is created for analyzing the test data distribution
     # The 25th and 75th percentiles are computed for each latent component in order to understand whether
@@ -361,4 +373,4 @@ if __name__ == '__main__':
     # Let's print the latent components based on decreasing variance
     print_latent_components_decreasing_variance(z_mean)
 
-    print(f"Finished. You can transfer to client: {can_be_transferred}")
+    print(f"\nFinished. You can transfer to client: {to_client}")
