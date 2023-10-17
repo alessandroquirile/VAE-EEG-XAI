@@ -236,7 +236,7 @@ def histogram_25_75(vae, x_test, y_test, latent_dim, subject):
     z_mean_trans, z_log_var_trans, _ = vae.encoder(trans)
 
     quantile_25 = np.quantile(z_mean, .25, axis=0)
-    quantile_75 = np.quantile(z_log_var, .75, axis=0)
+    quantile_75 = np.quantile(z_mean, .75, axis=0)
     num_rows = 7
     num_cols = 4
     fig, axes = plt.subplots(num_rows, num_cols, figsize=(15, 20))
@@ -265,7 +265,7 @@ def histogram_25_75(vae, x_test, y_test, latent_dim, subject):
             # print(quantile_25[j])
             # print(z_mean_blink[i,j])
             # print(quantile_75[j])
-            if z_mean_no_blink[z, j] > quantile_25[j] and z_mean_no_blink[z, j] < quantile_75[j]:
+            if quantile_25[j] < z_mean_no_blink[z, j] < quantile_75[j]:
                 true_noblink = true_noblink + 1
             else:
                 negative_noblink = negative_noblink + 1
@@ -408,22 +408,13 @@ def get_original_and_reconstructed(vae, x_test):
 if __name__ == '__main__':
     print("TensorFlow GPU usage:", tf.config.list_physical_devices('GPU'))
 
-    # Dati ridotti al solo intorno del blink
     subject = "s01"
-    topomaps_folder = f"topomaps_reduced_{subject}"
-    labels_folder = f"labels_reduced_{subject}"
 
-    # Load data
-    x_train, x_test, y_train, y_test = load_data(topomaps_folder, labels_folder, 0.2, False)
-
-    # Expand dimensions to (None, 40, 40, 1)
-    # This is because VAE is currently working with 4d tensors
-    x_train = expand(x_train)
-    x_test = expand(x_test)
-
-    # Normalization
-    x_train = normalize(x_train)
-    x_test = normalize(x_test)
+    # Loading data from files instead of train_test_split again avoids data leakage
+    x_train = np.load(f"x_train_{subject}.npy")
+    y_train = np.load(f"y_train_{subject}.npy")
+    x_test = np.load(f"x_test_{subject}.npy")
+    y_test = np.load(f"y_test_{subject}.npy")
 
     # Loading saved weights
     latent_dimension = 28
@@ -432,36 +423,36 @@ if __name__ == '__main__':
     decoder = Decoder()
     vae = VAE(encoder, decoder)
     vae.compile(Adam(best_l_rate))
-    vae.train_on_batch(x_train[:1], x_train[:1])  # Fondamentale per evitare i warning
+    vae.train_on_batch(x_train[:1], x_train[:1])  # Very important, avoid warnings
     vae.load_weights(f"checkpoints/vae_{subject}")
 
-    # Verifico che i pesi siano inalterati prima/dopo il load
+    # The parameters must be the same before/after the load
     check_weights_equality(f"w_before_{subject}.pickle", vae)
 
-    # Verifica SSIM medio per la combinazione corrente
+    # avg_score for current combination (dbg)
     avg_score_dbg()
 
-    # Salvo i cluster - su server
+    # Save clusters - on server
     clusters = label_clusters(vae, x_test, y_test)
     clusters_file_name = f"clusters_{subject}.pickle"
     save_clusters(clusters_file_name)
 
-    # Leggo i cluster - solo su client
+    # Read clusters - only on client
     # show_clusters(clusters_file_name)
 
-    # Salvo le immagini - su server
+    # Save images - on server
     original, reconstructed = get_original_and_reconstructed(vae, x_test)
-    original_file_name = "original.npy"
-    reconstructed_file_name = "reconstructed.npy"
+    original_file_name = f"original_{subject}.npy"
+    reconstructed_file_name = f"reconstructed_{subject}.npy"
     np.save(original_file_name, original)
     np.save(reconstructed_file_name, reconstructed)
     to_client.append(original_file_name)
     to_client.append(reconstructed_file_name)
 
-    # Mostra l'immagine originale e quella ricostruita - solo su client
+    # Show original and reconstructed image - only on client
     # show_topomaps(original_file_name, reconstructed_file_name)
 
-    # Calcolo score su un campione casuale del test set
+    # Score on random test sample
     original = np.load(original_file_name)
     reconstructed = np.load(reconstructed_file_name)
     ssim, mse, score = calculate_score(original, reconstructed)
@@ -469,7 +460,7 @@ if __name__ == '__main__':
     print(f"mse on random test sample: {mse:.4f}")
     print(f"score on random test sample: {score:.4f}")
 
-    # Calcolo score medio sull'intero test test
+    # avg_score on the whole test set
     avg_ssim, avg_mse, avg_score = calculate_score_test_set(x_test)
     print(f"\navg_ssim on test set: {avg_ssim:.4f}")
     print(f"avg_mse on test set: {avg_mse:.4f}")

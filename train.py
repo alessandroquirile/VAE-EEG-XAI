@@ -269,6 +269,13 @@ if __name__ == '__main__':
     x_train = normalize(x_train)
     x_test = normalize(x_test)
 
+    # Let's save data. The same data will be used for analysis.py
+    # This will avoid data leakage
+    np.save(f"x_train_{subject}.npy", x_train)
+    np.save(f"y_train_{subject}.npy", y_train)
+    np.save(f"x_test_{subject}.npy", x_test)
+    np.save(f"y_test_{subject}.npy", y_test)
+
     # Grid search
     latent_dimension = 28
     grid = custom_grid_search(x_train, latent_dimension)
@@ -286,7 +293,3 @@ if __name__ == '__main__':
         pickle.dump(w_before, fp)
 
     print(f"\nTraining finished. You can transfer to client: {to_client}")
-
-    # plot_metric(history, "loss")
-    # plot_metric(history, "reconstruction_loss")
-    # plot_metric(history, "kl_loss")"""
