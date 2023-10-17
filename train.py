@@ -20,13 +20,11 @@ from models import *
 to_client = []  # List of file names that can be transferred to client
 
 
-def load_data(topomaps_folder: str, labels_folder: str, test_size, anomaly_detection):
+def load_data(topomaps_folder: str, labels_folder: str, test_size, anomaly_detection, random_state):
     x, y = _create_dataset(topomaps_folder, labels_folder)
 
     print(f"Splitting data set into {1 - test_size} training set and {test_size} test set "
           f"{'for latent space analysis' if not anomaly_detection else 'for anomaly detection'}")
-
-    seed = 42
 
     if anomaly_detection:
         # Training set only contains images whose label is 0
@@ -38,7 +36,7 @@ def load_data(topomaps_folder: str, labels_folder: str, test_size, anomaly_detec
         remaining_indices = np.where(y != 0)[0]
         x_remaining = x[remaining_indices]
         y_remaining = y[remaining_indices]
-        _, x_test, _, y_test = train_test_split(x_remaining, y_remaining, test_size=test_size, random_state=seed)
+        _, x_test, _, y_test = train_test_split(x_remaining, y_remaining, test_size=test_size, random_state=random_state)
 
         # Check dataset for anomaly detection task
         y_train_only_contains_label_0 = all(y_train) == 0
@@ -46,7 +44,7 @@ def load_data(topomaps_folder: str, labels_folder: str, test_size, anomaly_detec
         if not y_train_only_contains_label_0 or not y_test_only_contains_label_1_and_2:
             raise Exception("Data was not loaded successfully")
     else:
-        x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=test_size, random_state=seed)
+        x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=test_size, random_state=random_state)
 
     return x_train, x_test, y_train, y_test
 
@@ -247,7 +245,8 @@ if __name__ == '__main__':
     labels_folder = f"labels_reduced_{subject}"
 
     # Load data
-    x_train, x_test, y_train, y_test = load_data(topomaps_folder, labels_folder, 0.2, False)
+    x_train, x_test, y_train, y_test = load_data(topomaps_folder, labels_folder,
+                                                 0.2,False, 42)
 
     # I am reducing the size of data set for speed purposes. For tests only
     # new_size = 200
@@ -268,13 +267,6 @@ if __name__ == '__main__':
     # Normalization between 0 and 1
     x_train = normalize(x_train)
     x_test = normalize(x_test)
-
-    # Let's save data. The same data will be used for analysis.py
-    # This will avoid data leakage
-    np.save(f"x_train_{subject}.npy", x_train)
-    np.save(f"y_train_{subject}.npy", y_train)
-    np.save(f"x_test_{subject}.npy", x_test)
-    np.save(f"y_test_{subject}.npy", y_test)
 
     # Grid search
     latent_dimension = 28

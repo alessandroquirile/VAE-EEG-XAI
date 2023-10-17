@@ -408,13 +408,23 @@ def get_original_and_reconstructed(vae, x_test):
 if __name__ == '__main__':
     print("TensorFlow GPU usage:", tf.config.list_physical_devices('GPU'))
 
+    # Dati ridotti al solo intorno del blink
     subject = "s01"
+    topomaps_folder = f"topomaps_reduced_{subject}"
+    labels_folder = f"labels_reduced_{subject}"
 
-    # Loading data from files instead of train_test_split again avoids data leakage
-    x_train = np.load(f"x_train_{subject}.npy")
-    y_train = np.load(f"y_train_{subject}.npy")
-    x_test = np.load(f"x_test_{subject}.npy")
-    y_test = np.load(f"y_test_{subject}.npy")
+    # Load data. Use the same random state used in train.py for data consistency
+    x_train, x_test, y_train, y_test = load_data(topomaps_folder, labels_folder,
+                                                 0.2, False, 42)
+
+    # Expand dimensions to (None, 40, 40, 1)
+    # This is because VAE is currently working with 4d tensors
+    x_train = expand(x_train)
+    x_test = expand(x_test)
+
+    # Normalization
+    x_train = normalize(x_train)
+    x_test = normalize(x_test)
 
     # Loading saved weights
     latent_dimension = 28
@@ -423,7 +433,7 @@ if __name__ == '__main__':
     decoder = Decoder()
     vae = VAE(encoder, decoder)
     vae.compile(Adam(best_l_rate))
-    vae.train_on_batch(x_train[:1], x_train[:1])  # Very important, avoid warnings
+    vae.train_on_batch(x_train[:1], x_train[:1])  # Very important, avoids warnings
     vae.load_weights(f"checkpoints/vae_{subject}")
 
     # The parameters must be the same before/after the load
