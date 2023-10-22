@@ -1,6 +1,7 @@
 from scipy.stats import skew
 from sklearn.metrics import roc_auc_score
 from train import *
+from scipy.stats import mode
 
 to_client = []  # List of file names that can be transferred to client
 
@@ -211,7 +212,7 @@ def calculate_score_test_set(x_test):
 
 
 def histogram_25_75(vae, x_test, y_test, latent_dim, subject):
-    z_mean, z_log_var, _ = vae.encoder(x_test)
+    z_mean, _, _ = vae.encoder(x_test)
 
     no_blink = []
     blink = []
@@ -227,66 +228,53 @@ def histogram_25_75(vae, x_test, y_test, latent_dim, subject):
     no_blink = np.array(no_blink)
     trans = np.array(trans)
 
-    print('Il numero di blink è:', len(blink))
+    """print('Il numero di blink è:', len(blink))
     print('Il numero di non blink è:', len(no_blink))
-    print('Il numero di transizioni è:', len(trans))
+    print('Il numero di transizioni è:', len(trans))"""
 
-    z_mean_blink, z_log_var_blink, _ = vae.encoder(blink)
-    z_mean_no_blink, z_log_var_no_blink, _ = vae.encoder(no_blink)
-    z_mean_trans, z_log_var_trans, _ = vae.encoder(trans)
+    z_mean_blink, _, _ = vae.encoder(blink)
+    z_mean_no_blink, _, _ = vae.encoder(no_blink)
+    z_mean_trans, _, _ = vae.encoder(trans)
 
-    quantile_25 = np.quantile(z_mean, .25, axis=0)
-    quantile_75 = np.quantile(z_mean, .75, axis=0)
+    # Indici di dispersione.
+    # Mediana: quantile di ordine 1/2
+    # Quartili: quantili di ordine 1/4, 1/2 e 3/4
+    # Percentili: quantili di ordine 1/100
+    quantile_25 = np.quantile(z_mean, .25, axis=0)  # Primo quartile (Q1)
+    quantile_75 = np.quantile(z_mean, .75, axis=0)  # Terzo quartile (Q3)
     num_rows = 7
     num_cols = 4
     fig, axes = plt.subplots(num_rows, num_cols, figsize=(15, 20))
-    for j in range(0, z_mean_blink.shape[1]):
 
-        # print (f'latent component {j+1}')
-        true_blink = 0
-        negative_blink = 0
-        negative_noblink = 0
-        true_noblink = 0
-
-        for i in range(0, z_mean_blink.shape[0]):
-            # print(quantile_25[j])
-            # print(z_mean_blink[i,j])
-            # print(quantile_75[j])
-            if z_mean_blink[i, j] <= quantile_25[j] or z_mean_blink[i, j] >= quantile_75[j]:
-                # print("Out")
+    for j in range(0, z_mean_blink.shape[1]):  # 0, 1,...,latent_dim-1
+        true_blink = 0  # TP
+        negative_blink = 0  # FN
+        negative_noblink = 0  # FP
+        true_noblink = 0  # TN
+        for i in range(0, z_mean_blink.shape[0]):  # 0, 1, ..., n_blinks-1
+            if z_mean_blink[i, j] <= quantile_25[j] or z_mean_blink[i, j] >= quantile_75[j]:  # Out
                 true_blink = true_blink + 1
             else:
                 negative_blink = negative_blink + 1
-
-        # print('True positive (TP):',true_blink)
-        # print('False negative (FN):',negative_blink)
-
-        for z in range(0, z_mean_no_blink.shape[0]):
-            # print(quantile_25[j])
-            # print(z_mean_blink[i,j])
-            # print(quantile_75[j])
-            if quantile_25[j] < z_mean_no_blink[z, j] < quantile_75[j]:
+        for i in range(0, z_mean_no_blink.shape[0]):  # 0, 1, ..., n_non_blinks-1
+            if quantile_25[j] < z_mean_no_blink[i, j] < quantile_75[j]:
                 true_noblink = true_noblink + 1
             else:
                 negative_noblink = negative_noblink + 1
 
-                # print('True negative (TN):',true_noblink)
-        # print('False positive (FP):',negative_noblink)
-
+        # Disegno
         row_index = j // num_cols
         col_index = j % num_cols
-
         ax = axes[row_index, col_index]
         ax.set_title(f'histogram latent component {j + 1}')
         ax.hist(z_mean_blink[:, j], bins=100, color='green', alpha=0.6,
-                label=f'Blink-TP:{true_blink}-FN:{negative_blink}')
+                label=f'Blink. TP:{true_blink}, FN:{negative_blink}')
         ax.hist(z_mean_no_blink[:, j], bins=100, color='violet', alpha=0.6,
-                label=f'No Blink-TN:{true_noblink}-FP:{negative_noblink}')
-        ax.hist(z_mean_trans[:, j], bins=100, color='yellow', alpha=0.6, label='Transizioni')
+                label=f'No Blink. TN:{true_noblink}, FP:{negative_noblink}')
+        ax.hist(z_mean_trans[:, j], bins=100, color='yellow', alpha=0.6, label='Transition')
 
         ax.axvline(quantile_25[j], color='black', linestyle='-', label='Quantile 25')
         ax.axvline(quantile_75[j], color='blue', linestyle='-', label='Quantile 75')
-
         ax.legend()
 
     plt.tight_layout()
@@ -296,13 +284,11 @@ def histogram_25_75(vae, x_test, y_test, latent_dim, subject):
     to_client.append(histogram_file_name)
 
     n_intervalli = 9
-
     M = np.zeros((latent_dim, n_intervalli * 2))
     start = 0.05
     end = 0.95
     step = 0.05
     Q = np.arange(start, end + step, step)
-
     i = 0
     for q in Q:
         # print("q",q)
@@ -397,12 +383,145 @@ def print_latent_components_decreasing_variance(z_mean):
     print('Skewness:', skewness)
 
 
-def get_original_and_reconstructed(vae, x_test):
-    image_index = 1
+def get_original_and_reconstructed(vae, x_test, image_index):
     original_image = x_test[image_index]
     x_test_reconstructed = vae.predict(x_test, verbose=0)
     reconstructed_image = x_test_reconstructed[image_index]
     return original_image, reconstructed_image
+
+
+def save_test_blink_originals(x_test, subject):
+    # Usa questa funzione per salvare in un unico png tutte le immagini di test con blink per un certo soggetto
+    num_rows = 2
+    num_cols = len(x_test) // num_rows
+    fig, axs = plt.subplots(num_rows, num_cols, figsize=(15, 7))
+    for i, ax in enumerate(axs.ravel()):
+        ax.imshow(x_test[i], cmap="gray")
+        ax.set_title(f"x_test[{i}]")
+        ax.axis('off')
+    # Save the entire figure
+    fig.suptitle(f"{subject} test blinks", fontsize=26)
+    file_name = f"test_blinks_{subject}.png"
+    fig.savefig(file_name)
+    to_client.append(file_name)
+
+
+def save_test_blink_reconstructions(vae, x_test, subject):
+    # Usa questa funzione per salvare in un unico png tutte le ricostruzioni di
+    # immagini di test con blink per un certo soggetto
+    reconstructions = []
+    for i in range(len(x_test)):
+        original = x_test[i]
+        reconstructed = vae.predict(np.expand_dims(original, axis=0), verbose=0)  # (1, 40, 40, 1)
+        reconstructions.append(reconstructed[0])
+    num_rows = 2
+    num_cols = len(x_test) // num_rows
+    fig, axs = plt.subplots(num_rows, num_cols, figsize=(15, 7))
+    for i, ax in enumerate(axs.ravel()):
+        ax.imshow(reconstructions[i], cmap="gray")
+        ax.set_title(f"x_test[{i}]")
+        ax.axis('off')
+    # Save the entire figure
+    fig.suptitle(f"{subject} test blinks reconstructed", fontsize=26)
+    file_name = f"test_blinks_reconstructed_{subject}.png"
+    fig.savefig(file_name)
+    to_client.append(file_name)
+
+
+def mask_single_test_sample(latent_component_indices, vae, x_test, subject):
+    # Usa questa funzione per salvare in un unico png un'unica immagine di test mascherata per un certo soggetto
+
+    _, _, z = vae.encoder(x_test, training=False)
+    decoder_output = vae.decoder(z, training=False)
+    # print(z.shape)  # (test_samples, latent_dim)
+    # print(decoder_output.shape)  # (test_samples, 40, 40, 1)
+
+    # Mask latent components using median value for each index in the list
+    z_masked = np.copy(z)
+    strategy = "Mode"  # or median
+    for latent_component_idx in latent_component_indices:
+        # median = np.median(z[:, latent_component_idx])
+        # z_masked[:, latent_component_idx] = median
+        mode_val, _ = mode(z[:, latent_component_idx])
+        z_masked[:, latent_component_idx] = mode_val
+
+    decoder_output_masked = vae.decoder(z_masked, training=False)
+
+    # Plotta le immagini
+    fig, axs = plt.subplots(1, 3, figsize=(10, 5))
+
+    image_index = 1
+
+    original = x_test[image_index]
+    axs[0].imshow(original, cmap="gray")
+    axs[0].set_title('Originale')
+
+    reconstructed = decoder_output[image_index]
+    axs[1].imshow(reconstructed, cmap="gray")
+    axs[1].set_title('Ricostruita')
+
+    reconstructed_masked = decoder_output_masked[image_index]
+    axs[2].imshow(reconstructed_masked, cmap="gray")
+    axs[2].set_title(f'{strategy} z[{", ".join(map(str, latent_component_indices))}]')
+
+    # Workaround per calcolare gli score
+    """np.save("del.npy", original)
+    original = np.load("del.npy")
+    np.save("del.npy", reconstructed)
+    reconstructed = np.load("del.npy")
+    print("original vs reconstructed", calculate_score(original, reconstructed))
+    np.save("del.npy", original)
+    original = np.load("del.npy")
+    np.save("del.npy", reconstructed_masked)
+    reconstructed_masked = np.load("del.npy")
+    print("original vs reconstructed_masked", calculate_score(original, reconstructed_masked))
+    np.save("del.npy", reconstructed)
+    reconstructed = np.load("del.npy")
+    np.save("del.npy", reconstructed_masked)
+    reconstructed_masked = np.load("del.npy")
+    print("reconstructed vs reconstructed_masked", calculate_score(reconstructed, reconstructed_masked))
+    os.remove("del.npy")"""
+
+    # Rimuovi i ticks sugli assi
+    for ax in axs:
+        ax.axis('off')
+
+    # Salva i grafici
+    plt.tight_layout()
+    file_name = f"z{'_'.join(map(str, latent_component_indices))}_{strategy.lower()}_{subject}.png"
+    fig.savefig(file_name)
+    to_client.append(file_name)
+
+
+def mask_test_set(latent_component_indices, vae, x_test, subject):
+    # Usa questa funzione per salvare in un unico png tutte le immagini mascherate
+    # di test con blink per un certo soggetto
+    _, _, z = vae.encoder(x_test, training=False)
+
+    # Create a figure with multiple subplots
+    num_rows = 2
+    num_cols = len(x_test) // num_rows
+    fig, axs = plt.subplots(num_rows, num_cols, figsize=(15, 7))
+
+    strategy = "Mode"  # or Median
+    for i, ax in enumerate(axs.ravel()):
+        z_masked = np.copy(z)
+        for latent_component_idx in latent_component_indices:
+            mode_value, _ = mode(z[:, latent_component_idx], keepdims=True)
+            z_masked[:, latent_component_idx] = mode_value
+
+        decoder_output_masked = vae.decoder(z_masked, training=False)
+        reconstructed_median = decoder_output_masked[i]
+
+        ax.imshow(reconstructed_median, cmap="gray")
+        ax.set_title(f"x_test[{i}]")
+        ax.axis('off')
+
+    # Save the entire figure
+    fig.suptitle(f"{subject} test blinks. Mask strategy is: {strategy}", fontsize=26)
+    file_name = f"z{'_'.join(map(str, latent_component_indices))}_{strategy.lower()}_{subject}.png"
+    fig.savefig(file_name)
+    to_client.append(file_name)
 
 
 if __name__ == '__main__':
@@ -433,7 +552,7 @@ if __name__ == '__main__':
     decoder = Decoder()
     vae = VAE(encoder, decoder)
     vae.compile(Adam(best_l_rate))
-    vae.train_on_batch(x_train[:1], x_train[:1])  # Very important, avoids warnings
+    vae.train_on_batch(x_train[:1], x_train[:1])  # Very important, avoids harmful warnings
     vae.load_weights(f"checkpoints/vae_{subject}")
 
     # The parameters must be the same before/after the load
@@ -451,7 +570,7 @@ if __name__ == '__main__':
     # show_clusters(clusters_file_name)
 
     # Save images - on server
-    original, reconstructed = get_original_and_reconstructed(vae, x_test)
+    original, reconstructed = get_original_and_reconstructed(vae, x_test, image_index=1)
     original_file_name = f"original_{subject}.npy"
     reconstructed_file_name = f"reconstructed_{subject}.npy"
     np.save(original_file_name, original)
@@ -474,12 +593,11 @@ if __name__ == '__main__':
     avg_ssim, avg_mse, avg_score = calculate_score_test_set(x_test)
     print(f"\navg_ssim on test set: {avg_ssim:.4f}")
     print(f"avg_mse on test set: {avg_mse:.4f}")
-    print(f"avg_score on test set: {avg_score:.4f}\n")
+    print(f"avg_score on test set: {avg_score:.4f}")
 
     # For each latent component a histogram is created for analyzing the test data distribution
     # The 25th and 75th percentiles are computed for each latent component in order to understand whether
-    # Blinks are located outside tha range
-    # For each histogram a confusion matrix is also computed
+    # Blinks are located outside tha range. For each histogram a confusion matrix is also computed
     quantile_matrix, z_mean, z_mean_blink, z_mean_no_blink, _ = histogram_25_75(vae, x_test, y_test,
                                                                                 latent_dimension, subject)
 
@@ -488,6 +606,17 @@ if __name__ == '__main__':
     auc_roc(quantile_matrix, z_mean_blink, z_mean_no_blink, subject)
 
     # Let's print the latent components based on decreasing variance
-    print_latent_components_decreasing_variance(z_mean)
+    # print_latent_components_decreasing_variance(z_mean)
+
+    # Mask relevant latent components
+    # "Relevant" means large IQR (implies more variance of data) and many TP blinks (outside the IQR)
+    blink_indices = np.where(y_test == 1)[0]  # Only on test samples labelled with blink (1)
+    x_test = x_test[blink_indices]
+    y_test = y_test[blink_indices]
+    x_test_only_contains_blinks = all(y_test) == 1
+    if not x_test_only_contains_blinks:
+        raise Exception("Something went wrong while considering only blinks test images")
+    latent_component_indices = [0, 1, 5, 8, 15, 18]  # 0, ..., latent_dim-1
+    mask_test_set(latent_component_indices, vae, x_test, subject)
 
     print(f"\nFinished. You can transfer to client: {to_client}")

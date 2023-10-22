@@ -36,7 +36,8 @@ def load_data(topomaps_folder: str, labels_folder: str, test_size, anomaly_detec
         remaining_indices = np.where(y != 0)[0]
         x_remaining = x[remaining_indices]
         y_remaining = y[remaining_indices]
-        _, x_test, _, y_test = train_test_split(x_remaining, y_remaining, test_size=test_size, random_state=random_state)
+        _, x_test, _, y_test = train_test_split(x_remaining, y_remaining, test_size=test_size,
+                                                random_state=random_state)
 
         # Check dataset for anomaly detection task
         y_train_only_contains_label_0 = all(y_train) == 0
@@ -246,7 +247,7 @@ if __name__ == '__main__':
 
     # Load data
     x_train, x_test, y_train, y_test = load_data(topomaps_folder, labels_folder,
-                                                 0.2,False, 42)
+                                                 0.2, False, 42)
 
     # I am reducing the size of data set for speed purposes. For tests only
     # new_size = 200
