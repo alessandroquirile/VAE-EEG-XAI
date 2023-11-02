@@ -524,6 +524,40 @@ def mask_test_set(latent_component_indices, vae, x_test, subject):
     to_client.append(file_name)
 
 
+def mask_test_set_reversed(latent_component_indices, vae, x_test, subject):
+    # Usa questa funzione per salvare in un unico png tutte le immagini mascherate
+    # di test con blink per un certo soggetto
+    # REVERSED nel senso che legge gli indici ma maschera TUTTI GLI ALTRI
+    _, _, z = vae.encoder(x_test, training=False)
+
+    # Create a figure with multiple subplots
+    num_rows = 2
+    num_cols = len(x_test) // num_rows
+    fig, axs = plt.subplots(num_rows, num_cols, figsize=(15, 7))
+
+    strategy = "Mode_reversed"  # or Median
+    for i, ax in enumerate(axs.ravel()):
+        z_masked = np.copy(z)
+        for latent_component_idx in range(z.shape[1]):
+            # Maschera tutti gli altri tranne quelli specificati
+            if latent_component_idx not in latent_component_indices:
+                mode_value, _ = mode(z[:, latent_component_idx], keepdims=True)
+                z_masked[:, latent_component_idx] = mode_value
+
+        decoder_output_masked = vae.decoder(z_masked, training=False)
+        reconstructed_median = decoder_output_masked[i]
+
+        ax.imshow(reconstructed_median, cmap="gray")
+        ax.set_title(f"x_test[{i}]")
+        ax.axis('off')
+
+    # Save the entire figure
+    fig.suptitle(f"{subject} test blinks. Mask strategy is: {strategy}", fontsize=26)
+    file_name = f"z{'_'.join(map(str, latent_component_indices))}_{strategy.lower()}_{subject}.png"
+    fig.savefig(file_name)
+    to_client.append(file_name)
+
+
 if __name__ == '__main__':
     print("TensorFlow GPU usage:", tf.config.list_physical_devices('GPU'))
 
@@ -547,7 +581,7 @@ if __name__ == '__main__':
 
     # Loading saved weights
     latent_dimension = 28
-    best_l_rate = 1e-05
+    best_l_rate = 1e-05  # Da modificare in base al log.txt
     encoder = Encoder(latent_dimension)
     decoder = Decoder()
     vae = VAE(encoder, decoder)
@@ -617,6 +651,7 @@ if __name__ == '__main__':
     if not x_test_only_contains_blinks:
         raise Exception("Something went wrong while considering only blinks test images")
     latent_component_indices = [0, 1, 5, 8, 15, 18]  # 0, ..., latent_dim-1
-    mask_test_set(latent_component_indices, vae, x_test, subject)
+    mask_test_set(latent_component_indices, vae, x_test, subject)  # maschera quelle specificate
+    mask_test_set_reversed(latent_component_indices, vae, x_test, subject)  # maschera tutte tranne quelle specificate
 
     print(f"\nFinished. You can transfer to client: {to_client}")

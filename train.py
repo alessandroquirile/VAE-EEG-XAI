@@ -250,9 +250,8 @@ if __name__ == '__main__':
                                                  0.2, False, 42)
 
     # I am reducing the size of data set for speed purposes. For tests only
-    # new_size = 200
-    # x_train, y_train = reduce_size(x_train, y_train, new_size)
-    # x_test, y_test = reduce_size(x_test, y_test, new_size)
+    """x_train, y_train = reduce_size(x_train, y_train, 25000)
+    x_test, y_test = reduce_size(x_test, y_test, 6000)"""
 
     # Expand dimensions to (None, 40, 40, 1)
     # This is because VAE is currently working with 4d tensors
