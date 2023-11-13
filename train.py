@@ -173,7 +173,7 @@ class CustomGridSearchCV:
         param_combinations = list(product(*self.param_grid.values()))
         n_combinations = len(param_combinations)
 
-        n_splits = 3
+        n_splits = 5
         print("n_splits:", n_splits)
         print(f"scorers: {scaled_ssim} and {mean_squared_error}")
 
@@ -210,17 +210,24 @@ class CustomGridSearchCV:
 
             avg_ssim = np.mean(ssim_scores)
             avg_mse = np.mean(mse_scores)
-            # avg_score = (avg_ssim + avg_mse) / 2
+
+            ssim_std = np.std(ssim_scores)
+            mse_std = np.std(mse_scores)
+
             avg_score = avg_ssim / (avg_mse + 1)
+            score_std = np.std(ssim_scores) / (np.std(mse_scores) + 1)
 
             params_dict['avg_score'] = avg_score
+            params_dict['score_std'] = score_std
             params_dict['ssim'] = avg_ssim
             params_dict['mse'] = avg_mse
+            params_dict['ssim_std'] = ssim_std
+            params_dict['mse_std'] = mse_std
             self.grid_.append(params_dict)
 
-            print(f"avg_ssim for current combination: {avg_score:.4f}")
-            print(f"avg_mse for current combination: {avg_mse:.4f}")
-            print(f"avg_score for current combination: {avg_score:.4f}")
+            print(f"avg_ssim for current combination: {avg_score:.4f} ± {ssim_std:.4f}")
+            print(f"avg_mse for current combination: {avg_mse:.4f} ± {mse_std:.4f}")
+            print(f"avg_score for current combination: {avg_score:.4f} ± {score_std:.4f}")
 
             # Update the best hyperparameters based on the highest avg_score
             if self.best_score_ is None or avg_score > self.best_score_:
@@ -241,7 +248,7 @@ if __name__ == '__main__':
     print("TensorFlow GPU usage:", tf.config.list_physical_devices('GPU'))
 
     # Dati ridotti al solo intorno del blink
-    subject = "s01"
+    subject = "s10"
     topomaps_folder = f"topomaps_reduced_{subject}"
     labels_folder = f"labels_reduced_{subject}"
 
@@ -249,16 +256,13 @@ if __name__ == '__main__':
     x_train, x_test, y_train, y_test = load_data(topomaps_folder, labels_folder,
                                                  0.2, False, 42)
 
-    # I am reducing the size of data set for speed purposes. For tests only
-    """x_train, y_train = reduce_size(x_train, y_train, 25000)
-    x_test, y_test = reduce_size(x_test, y_test, 6000)"""
-
     # Expand dimensions to (None, 40, 40, 1)
     # This is because VAE is currently working with 4d tensors
     x_train = expand(x_train)
     x_test = expand(x_test)
 
     # Print data shapes
+    # x_train deve essere circa 2700, mentre x_test circa 700
     print("x_train shape:", x_train.shape)
     print("y_train shape:", y_train.shape)
     print("x_test shape:", x_test.shape)
