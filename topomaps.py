@@ -1,3 +1,4 @@
+import random
 import warnings
 
 from mne.preprocessing import find_eog_events
@@ -51,28 +52,28 @@ if __name__ == '__main__':
     # For participants 3, 5, 11 and 14, one or several of the last trials are missing due to technical issues
     # s01-s22 are the only participants who do have videos
     magic_numbers = {
-        "s01.bdf": 105,
-        "s02.bdf": 160,
-        "s03.bdf": 100,
-        "s04.bdf": 150,
-        "s05.bdf": 150,
-        "s06.bdf": 150,
-        "s07.bdf": 110,
-        "s08.bdf": 150,
-        "s09.bdf": 150,
+        # "s01.bdf": 105,
+        # "s02.bdf": 160,
+        # "s03.bdf": 100,
+        # "s04.bdf": 150,
+        # "s05.bdf": 150,
+        # "s06.bdf": 150,
+        # "s07.bdf": 110,
+        # "s08.bdf": 150,
+        # "s09.bdf": 150,
         "s10.bdf": 110,
-        "s11.bdf": 110,
-        "s12.bdf": 150,
-        "s13.bdf": 110,
-        "s14.bdf": 110,
-        "s15.bdf": 150,
-        "s16.bdf": 105,
-        "s17.bdf": 150,
-        "s18.bdf": 105,
-        "s19.bdf": 150,
-        "s20.bdf": 150,
-        "s21.bdf": 150,
-        "s22.bdf": 160
+        # "s11.bdf": 110,
+        # "s12.bdf": 150,
+        # "s13.bdf": 110,
+        # "s14.bdf": 110,
+        # "s15.bdf": 150,
+        # "s16.bdf": 105,
+        # "s17.bdf": 150,
+        # "s18.bdf": 105,
+        # "s19.bdf": 150,
+        # "s20.bdf": 150,
+        # "s21.bdf": 150,
+        # "s22.bdf": 160
     }
 
     subjects = list(magic_numbers.keys())
@@ -157,6 +158,9 @@ if __name__ == '__main__':
                 trial_labels.append(trial_label)
                 trial_topomaps.append(interpolatedTopographicMap)"""
 
+            # Randomly sample a subset of the blinks for the current subject
+            idx_blinks = random.sample(sorted(idx_blinks), len(idx_blinks) // 8)
+
             # Solo nell'intorno
             for j in idx_blinks:
                 start_index = max(j - int(sec * sample_rate), 0)
@@ -175,8 +179,9 @@ if __name__ == '__main__':
                 trial_topomaps = np.array(trial_topomaps)
                 trial_labels = np.array(trial_labels)
 
-                topomap_folder = 'topomaps_reduced'  # Solo nell'intorno
-                labels_folder = 'labels_reduced'  # Solo nell'intorno
+                # Rimuovi _{subject} se rimuovi idx_blinks = random.sample(...)
+                topomap_folder = f'topomaps_reduced_{subject}'  # Solo nell'intorno
+                labels_folder = f'labels_reduced_{subject}'  # Solo nell'intorno
 
                 os.makedirs(topomap_folder, exist_ok=True)
                 os.makedirs(labels_folder, exist_ok=True)
