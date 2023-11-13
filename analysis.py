@@ -228,9 +228,9 @@ def histogram_25_75(vae, x_test, y_test, latent_dim, subject):
     no_blink = np.array(no_blink)
     trans = np.array(trans)
 
-    """print('Il numero di blink è:', len(blink))
+    print('\nIl numero di blink è:', len(blink))
     print('Il numero di non blink è:', len(no_blink))
-    print('Il numero di transizioni è:', len(trans))"""
+    print('Il numero di transizioni è:', len(trans))
 
     z_mean_blink, _, _ = vae.encoder(blink)
     z_mean_no_blink, _, _ = vae.encoder(no_blink)
@@ -242,6 +242,7 @@ def histogram_25_75(vae, x_test, y_test, latent_dim, subject):
     # Percentili: quantili di ordine 1/100
     quantile_25 = np.quantile(z_mean, .25, axis=0)  # Primo quartile (Q1)
     quantile_75 = np.quantile(z_mean, .75, axis=0)  # Terzo quartile (Q3)
+
     num_rows = 7
     num_cols = 4
     fig, axes = plt.subplots(num_rows, num_cols, figsize=(15, 20))
@@ -496,11 +497,15 @@ def mask_single_test_sample(latent_component_indices, vae, x_test, subject):
 def mask_test_set(latent_component_indices, vae, x_test, subject):
     # Usa questa funzione per salvare in un unico png tutte le immagini mascherate
     # di test con blink per un certo soggetto
-    _, _, z = vae.encoder(x_test, training=False)
+
+    # Il mascheramento va fatto considerando la moda delle immagini di test SENZA blink
+    x_test_no_blinks = get_x_test_no_blinks(x_test, y_test)
+    _, _, z = vae.encoder(x_test_no_blinks, training=False)
 
     # Create a figure with multiple subplots
     num_rows = 2
-    num_cols = len(x_test) // num_rows
+    x_test_blinks = get_x_test_blinks(x_test, y_test)
+    num_cols = len(x_test_blinks) // num_rows
     fig, axs = plt.subplots(num_rows, num_cols, figsize=(15, 7))
 
     strategy = "Mode"  # or Median
@@ -511,9 +516,9 @@ def mask_test_set(latent_component_indices, vae, x_test, subject):
             z_masked[:, latent_component_idx] = mode_value
 
         decoder_output_masked = vae.decoder(z_masked, training=False)
-        reconstructed_median = decoder_output_masked[i]
+        reconstructed_masked = decoder_output_masked[i]
 
-        ax.imshow(reconstructed_median, cmap="gray")
+        ax.imshow(reconstructed_masked, cmap="gray")
         ax.set_title(f"x_test[{i}]")
         ax.axis('off')
 
@@ -528,11 +533,15 @@ def mask_test_set_reversed(latent_component_indices, vae, x_test, subject):
     # Usa questa funzione per salvare in un unico png tutte le immagini mascherate
     # di test con blink per un certo soggetto
     # REVERSED nel senso che legge gli indici ma maschera TUTTI GLI ALTRI
-    _, _, z = vae.encoder(x_test, training=False)
+
+    # Il mascheramento va fatto considerando la moda delle immagini di test SENZA blink
+    x_test_no_blinks = get_x_test_no_blinks(x_test, y_test)
+    _, _, z = vae.encoder(x_test_no_blinks, training=False)
 
     # Create a figure with multiple subplots
     num_rows = 2
-    num_cols = len(x_test) // num_rows
+    x_test_blinks = get_x_test_blinks(x_test, y_test)
+    num_cols = len(x_test_blinks) // num_rows
     fig, axs = plt.subplots(num_rows, num_cols, figsize=(15, 7))
 
     strategy = "Mode_reversed"  # or Median
@@ -545,9 +554,9 @@ def mask_test_set_reversed(latent_component_indices, vae, x_test, subject):
                 z_masked[:, latent_component_idx] = mode_value
 
         decoder_output_masked = vae.decoder(z_masked, training=False)
-        reconstructed_median = decoder_output_masked[i]
+        reconstructed_masked = decoder_output_masked[i]
 
-        ax.imshow(reconstructed_median, cmap="gray")
+        ax.imshow(reconstructed_masked, cmap="gray")
         ax.set_title(f"x_test[{i}]")
         ax.axis('off')
 
@@ -558,11 +567,54 @@ def mask_test_set_reversed(latent_component_indices, vae, x_test, subject):
     to_client.append(file_name)
 
 
+def get_x_test_no_blinks(x_test, y_test):
+    blink_indices = np.where(y_test == 0)[0]  # Only on test samples labelled with NO BLINK (0)
+    x_test = x_test[blink_indices]
+    y_test = y_test[blink_indices]
+    x_test_only_contains_no_blinks = all(y_test) == 0
+    if not x_test_only_contains_no_blinks:
+        raise Exception("Something went wrong while considering only no-blinks test images")
+    return x_test
+
+def get_x_test_blinks(x_test, y_test):
+    blink_indices = np.where(y_test == 1)[0]  # Only on test samples labelled with BLINK (1)
+    x_test = x_test[blink_indices]
+    y_test = y_test[blink_indices]
+    x_test_only_contains_blinks = all(y_test) == 1
+    if not x_test_only_contains_blinks:
+        raise Exception("Something went wrong while considering only blinks test images")
+    return x_test
+
+
 if __name__ == '__main__':
     print("TensorFlow GPU usage:", tf.config.list_physical_devices('GPU'))
 
+    # Ogni soggetto ha il proprio learning rate ottimale
+    learning_rates = {
+        "s01": 1e-05,
+        "s02": 1e-05,
+        "s03": 1e-06,
+        "s04": 1e-05,
+        # "s05": 1e-05,
+        "s06": 1e-05,
+        "s07": 1e-05,
+        # "s08": 1e-07
+    }
+
+    # Indici delle componenti latenti rilevanti per ciascun soggetto
+    relevant_indices = {
+        "s01": [0, 1, 5, 8, 15, 18],
+        "s02": [1, 5, 12, 14, 19, 27],
+        "s03": [0, 1, 5, 19, 24, 26],
+        "s04": [0, 4, 10],
+        # "s05": [],  # Non capisco perché ma gli istogrammi non sono significativi
+        "s06": [0, 1, 2, 3],
+        "s07": [0, 1, 2, 3, 4, 5],
+        # "s08": []  # Non capisco perché ma gli istogrammi non sono significativi
+    }
+
     # Dati ridotti al solo intorno del blink
-    subject = "s01"
+    subject = "s07"
     topomaps_folder = f"topomaps_reduced_{subject}"
     labels_folder = f"labels_reduced_{subject}"
 
@@ -581,7 +633,7 @@ if __name__ == '__main__':
 
     # Loading saved weights
     latent_dimension = 28
-    best_l_rate = 1e-05  # Da modificare in base al log.txt
+    best_l_rate = learning_rates[subject]
     encoder = Encoder(latent_dimension)
     decoder = Decoder()
     vae = VAE(encoder, decoder)
@@ -592,7 +644,7 @@ if __name__ == '__main__':
     # The parameters must be the same before/after the load
     check_weights_equality(f"w_before_{subject}.pickle", vae)
 
-    # avg_score for current combination (dbg)
+    """# avg_score for current combination (dbg)
     avg_score_dbg()
 
     # Save clusters - on server
@@ -637,21 +689,15 @@ if __name__ == '__main__':
 
     # For each latent component the ROC-AUC curve is created for detecting the quartile range which
     # Maximizes the TPR (True Positive Rate)
-    auc_roc(quantile_matrix, z_mean_blink, z_mean_no_blink, subject)
-
-    # Let's print the latent components based on decreasing variance
-    # print_latent_components_decreasing_variance(z_mean)
+    auc_roc(quantile_matrix, z_mean_blink, z_mean_no_blink, subject)"""
 
     # Mask relevant latent components
     # "Relevant" means large IQR (implies more variance of data) and many TP blinks (outside the IQR)
-    blink_indices = np.where(y_test == 1)[0]  # Only on test samples labelled with blink (1)
-    x_test = x_test[blink_indices]
-    y_test = y_test[blink_indices]
-    x_test_only_contains_blinks = all(y_test) == 1
-    if not x_test_only_contains_blinks:
-        raise Exception("Something went wrong while considering only blinks test images")
-    latent_component_indices = [0, 1, 5, 8, 15, 18]  # 0, ..., latent_dim-1
-    mask_test_set(latent_component_indices, vae, x_test, subject)  # maschera quelle specificate
-    mask_test_set_reversed(latent_component_indices, vae, x_test, subject)  # maschera tutte tranne quelle specificate
+    mask_test_set(relevant_indices[subject], vae, x_test, subject)  # maschera quelle specificate
+    mask_test_set_reversed(relevant_indices[subject], vae, x_test, subject)  # maschera tutte tranne quelle specificate
+
+    x_test = get_x_test_blinks(x_test, y_test)
+    save_test_blink_originals(x_test, subject)
+    save_test_blink_reconstructions(vae, x_test, subject)
 
     print(f"\nFinished. You can transfer to client: {to_client}")
