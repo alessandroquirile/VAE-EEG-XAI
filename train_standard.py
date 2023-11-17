@@ -15,7 +15,7 @@ from sklearn.model_selection import train_test_split, KFold
 from tensorflow.python.ops.numpy_ops import np_config
 from tqdm import tqdm
 
-from models import *
+from models_standard import *
 
 to_client = []  # List of file names that can be transferred to client
 
@@ -103,8 +103,8 @@ def normalize(x):
 def custom_grid_search(x_train, latent_dimension):
     param_grid = {
         'epochs': [2500],
-        'l_rate': [10 ** -5, 10 ** -6, 10 ** -7],
-        'batch_size': [32, 64, 128],
+        'l_rate': [10 ** -5],  # Con gli AE ho notato che questo è il valore ottimale sempre
+        'batch_size': [32],  # Come sopra
         'patience': [30]
     }
 
@@ -131,15 +131,15 @@ def refit(fitted_grid, x_train, y_train, latent_dimension):
     print("x_val shape:", x_val.shape)
     print("y_val shape:", y_val.shape)
 
-    encoder = Encoder(latent_dimension)
-    decoder = Decoder()
-    vae = VAE(encoder, decoder, best_epochs, best_l_rate, best_batch_size, best_patience)
-    vae.compile(Adam(best_l_rate))
+    encoder = EncoderStandard(latent_dimension)
+    decoder = DecoderStandard()
+    autoencoder = Autoencoder(encoder, decoder, best_epochs, best_l_rate, best_batch_size, best_patience)
+    autoencoder.compile(Adam(best_l_rate))
 
     early_stopping = EarlyStopping("val_loss", patience=best_patience, verbose=1)
 
-    history = vae.fit(x_train, x_train, best_batch_size, best_epochs,
-                      validation_data=(x_val, x_val), callbacks=[early_stopping], verbose=1)
+    history = autoencoder.fit(x_train, x_train, best_batch_size, best_epochs,
+                              validation_data=(x_val, x_val), callbacks=[early_stopping], verbose=1)
 
     # dbg
     cv = KFold(n_splits=5, shuffle=True, random_state=42)
@@ -147,7 +147,7 @@ def refit(fitted_grid, x_train, y_train, latent_dimension):
     mse_scores = []
     for train_idx, val_idx in cv.split(x_train):
         x_train_fold, x_val_fold = x_train[train_idx], x_train[val_idx]
-        predicted = vae.predict(x_val_fold)
+        predicted = autoencoder.predict(x_val_fold)
         ssim = scaled_ssim(x_val_fold, predicted)
         mse = mean_squared_error(x_val_fold, predicted)
         ssim_scores.append(ssim)
@@ -159,7 +159,7 @@ def refit(fitted_grid, x_train, y_train, latent_dimension):
     print(f"[dbg] avg_mse for best combination after fit: {avg_mse:.4f}")
     print(f"[dbg] avg_score for best combination after fit: {avg_score:.4f}")
 
-    return history, vae
+    return history, autoencoder
 
 
 class CustomGridSearchCV:
@@ -187,16 +187,17 @@ class CustomGridSearchCV:
             for train_idx, val_idx in cv.split(x_train):
                 x_train_fold, x_val_fold = x_train[train_idx], x_train[val_idx]
 
-                encoder = Encoder(latent_dimension)
-                decoder = Decoder()
-                vae = VAE(encoder, decoder, params_dict['epochs'], params_dict['l_rate'], params_dict['batch_size'])
-                vae.compile(Adam(params_dict['l_rate']))
+                encoder = EncoderStandard(latent_dimension)
+                decoder = DecoderStandard()
+                autoencoder = Autoencoder(encoder, decoder, params_dict['epochs'], params_dict['l_rate'],
+                                          params_dict['batch_size'])
+                autoencoder.compile(Adam(params_dict['l_rate']))
 
                 early_stopping = EarlyStopping("val_loss", patience=params_dict['patience'])
-                vae.fit(x_train_fold, x_train_fold, params_dict['batch_size'], params_dict['epochs'],
-                        validation_data=(x_val_fold, x_val_fold), callbacks=[early_stopping], verbose=0)
+                autoencoder.fit(x_train_fold, x_train_fold, params_dict['batch_size'], params_dict['epochs'],
+                                validation_data=(x_val_fold, x_val_fold), callbacks=[early_stopping], verbose=0)
 
-                predicted = vae.predict(x_val_fold)
+                predicted = autoencoder.predict(x_val_fold)
                 ssim = scaled_ssim(x_val_fold, predicted)
                 mse = mean_squared_error(x_val_fold, predicted)
                 ssim_scores.append(ssim)
@@ -205,7 +206,7 @@ class CustomGridSearchCV:
                 # Clear the TensorFlow session to free GPU memory
                 # https://stackoverflow.com/a/52354943/17082611
                 tf.keras.backend.clear_session()
-                del encoder, decoder, vae
+                del encoder, decoder, autoencoder
                 gc.collect()
 
             avg_ssim = np.mean(ssim_scores)
@@ -238,7 +239,7 @@ class CustomGridSearchCV:
 
 
 def save(history, subject):
-    file_name = f'history_{subject}.pickle'
+    file_name = f'history_{subject}_standard.pickle'
     with open(file_name, 'wb') as file_pi:
         pickle.dump(history.history, file_pi)
     to_client.append(file_name)
@@ -248,7 +249,7 @@ if __name__ == '__main__':
     print("TensorFlow GPU usage:", tf.config.list_physical_devices('GPU'))
 
     # Dati ridotti al solo intorno del blink
-    subject = "s10"
+    subject = "s05"
     topomaps_folder = f"topomaps_reduced_{subject}"
     labels_folder = f"labels_reduced_{subject}"
 
@@ -257,7 +258,7 @@ if __name__ == '__main__':
                                                  0.2, False, 42)
 
     # Expand dimensions to (None, 40, 40, 1)
-    # This is because VAE is currently working with 4d tensors
+    # This is because AE is currently working with 4d tensors
     x_train = expand(x_train)
     x_test = expand(x_test)
 
@@ -277,15 +278,15 @@ if __name__ == '__main__':
     grid = custom_grid_search(x_train, latent_dimension)
 
     # Refit
-    history, vae = refit(grid, x_train, y_train, latent_dimension)
+    history, autoencoder = refit(grid, x_train, y_train, latent_dimension)
     save(history, subject)
-    vae.save_weights(f"checkpoints/vae_{subject}", save_format='tf')
+    autoencoder.save_weights(f"checkpoints/ae_{subject}", save_format='tf')
 
     # Questa parte serve per serializzare i pesi e verificare che a seguito del load
     # Essi siano uguali nel file analysis.py
     # dbg
-    w_before = vae.get_weights()
-    with open(f"w_before_{subject}.pickle", "wb") as fp:
+    w_before = autoencoder.get_weights()
+    with open(f"w_before_{subject}_standard.pickle", "wb") as fp:
         pickle.dump(w_before, fp)
 
     print(f"\nTraining finished. You can transfer to client: {to_client}")

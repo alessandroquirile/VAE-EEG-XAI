@@ -55,13 +55,13 @@ if __name__ == '__main__':
         # "s01.bdf": 105,
         # "s02.bdf": 160,
         # "s03.bdf": 100,
-        # "s04.bdf": 150,
+        "s04.bdf": 150,
         # "s05.bdf": 150,
         # "s06.bdf": 150,
         # "s07.bdf": 110,
         # "s08.bdf": 150,
         # "s09.bdf": 150,
-        "s10.bdf": 110,
+        # "s10.bdf": 110,
         # "s11.bdf": 110,
         # "s12.bdf": 150,
         # "s13.bdf": 110,
@@ -159,7 +159,7 @@ if __name__ == '__main__':
                 trial_topomaps.append(interpolatedTopographicMap)"""
 
             # Randomly sample a subset of the blinks for the current subject
-            idx_blinks = random.sample(sorted(idx_blinks), len(idx_blinks) // 8)
+            idx_blinks = random.sample(sorted(idx_blinks), len(idx_blinks) // 15)
 
             # Solo nell'intorno
             for j in idx_blinks:
