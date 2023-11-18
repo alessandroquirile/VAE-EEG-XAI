@@ -249,7 +249,7 @@ if __name__ == '__main__':
     print("TensorFlow GPU usage:", tf.config.list_physical_devices('GPU'))
 
     # Dati ridotti al solo intorno del blink
-    subject = "s05"
+    subject = "s03"
     topomaps_folder = f"topomaps_reduced_{subject}"
     labels_folder = f"labels_reduced_{subject}"
 

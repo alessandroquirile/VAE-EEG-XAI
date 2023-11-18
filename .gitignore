@@ -168,4 +168,4 @@ plots/
 topomaps/
 topomaps_*/
 checkpoints/
-results_*
+results*
