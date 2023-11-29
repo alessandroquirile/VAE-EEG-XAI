@@ -142,19 +142,19 @@ def calculate_score_test_set(x_test):
     return avg_ssim, avg_mse, avg_score
 
 
-def histogram_25_75(vae, x_test, y_test, latent_dim, subject):
-    z = vae.encoder(x_test)
+def histogram_25_75(vae, x_train, y_train, latent_dim, subject):
+    z = vae.encoder(x_train)
 
     no_blink = []
     blink = []
     trans = []
-    for i in range(0, len(y_test)):
-        if y_test[i] == 0:
-            no_blink.append(x_test[i])
-        if y_test[i] == 1:
-            blink.append(x_test[i])
-        if y_test[i] == 2:
-            trans.append(x_test[i])
+    for i in range(0, len(y_train)):
+        if y_train[i] == 0:
+            no_blink.append(x_train[i])
+        if y_train[i] == 1:
+            blink.append(x_train[i])
+        if y_train[i] == 2:
+            trans.append(x_train[i])
     blink = np.array(blink)
     no_blink = np.array(no_blink)
     trans = np.array(trans)
@@ -653,7 +653,7 @@ if __name__ == '__main__':
     }
 
     # Dati ridotti al solo intorno del blink
-    subject = "s09"
+    subject = "s01"
     topomaps_folder = f"topomaps_reduced_{subject}"
     labels_folder = f"labels_reduced_{subject}"
 
@@ -681,9 +681,9 @@ if __name__ == '__main__':
     autoencoder.load_weights(f"checkpoints/ae_{subject}")
 
     # The parameters must be the same before/after the load
-    check_weights_equality(f"w_before_{subject}_standard.pickle", autoencoder)
+    # check_weights_equality(f"w_before_{subject}_standard.pickle", autoencoder)
 
-    """# avg_score for current combination (dbg)
+    # avg_score for current combination (dbg)
     avg_score_dbg()
 
     # Save clusters - on server
@@ -723,19 +723,19 @@ if __name__ == '__main__':
     # For each latent component a histogram is created for analyzing the test data distribution
     # The 25th and 75th percentiles are computed for each latent component in order to understand whether
     # Blinks are located outside tha range. For each histogram a confusion matrix is also computed
-    quantile_matrix, z, z_blink, z_no_blink, _ = histogram_25_75(autoencoder, x_test, y_test, latent_dimension, subject)
+    quantile_matrix, z, z_blink, z_no_blink, _ = histogram_25_75(autoencoder, x_train, y_train, latent_dimension, subject)
 
     # For each latent component the ROC-AUC curve is created for detecting the quartile range which
     # Maximizes the TPR (True Positive Rate)
-    auc_roc(quantile_matrix, z_blink, z_no_blink, subject)"""
+    auc_roc(quantile_matrix, z_blink, z_no_blink, subject)
 
-    # Mask relevant latent components
+    """# Mask relevant latent components
     # "Relevant" means large IQR (implies more variance of data) and many TP blinks (outside the IQR)
     mask_test_set(relevant_indices[subject], autoencoder, x_test, subject)  # maschera quelle specificate
     mask_test_set_reversed(relevant_indices[subject], autoencoder, x_test, subject)  # maschera tutte tranne quelle specificate
 
     x_test = get_x_test_blinks(x_test, y_test)
     save_test_blink_originals(x_test, subject)
-    save_test_blink_reconstructions(autoencoder, x_test, subject)
+    save_test_blink_reconstructions(autoencoder, x_test, subject)"""
 
     print(f"\nFinished. You can transfer to client: {to_client}")

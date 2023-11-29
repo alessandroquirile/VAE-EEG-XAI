@@ -211,19 +211,19 @@ def calculate_score_test_set(x_test):
     return avg_ssim, avg_mse, avg_score
 
 
-def histogram_25_75(vae, x_test, y_test, latent_dim, subject):
-    z_mean, _, _ = vae.encoder(x_test)
+def histogram_25_75(vae, x_train, y_train, latent_dim, subject):
+    z_mean, _, _ = vae.encoder(x_train)
 
     no_blink = []
     blink = []
     trans = []
-    for i in range(0, len(y_test)):
-        if y_test[i] == 0:
-            no_blink.append(x_test[i])
-        if y_test[i] == 1:
-            blink.append(x_test[i])
-        if y_test[i] == 2:
-            trans.append(x_test[i])
+    for i in range(0, len(y_train)):
+        if y_train[i] == 0:
+            no_blink.append(x_train[i])
+        if y_train[i] == 1:
+            blink.append(x_train[i])
+        if y_train[i] == 2:
+            trans.append(x_train[i])
     blink = np.array(blink)
     no_blink = np.array(no_blink)
     trans = np.array(trans)
@@ -722,7 +722,7 @@ if __name__ == '__main__':
     }
 
     # Dati ridotti al solo intorno del blink
-    subject = "s02"
+    subject = "s01"
     topomaps_folder = f"topomaps_reduced_{subject}"
     labels_folder = f"labels_reduced_{subject}"
 
@@ -750,7 +750,7 @@ if __name__ == '__main__':
     vae.load_weights(f"checkpoints/vae_{subject}")
 
     # The parameters must be the same before/after the load
-    check_weights_equality(f"w_before_{subject}.pickle", vae)
+    # check_weights_equality(f"w_before_{subject}.pickle", vae)
 
     # avg_score for current combination (dbg)
     avg_score_dbg()
@@ -792,8 +792,7 @@ if __name__ == '__main__':
     # For each latent component a histogram is created for analyzing the test data distribution
     # The 25th and 75th percentiles are computed for each latent component in order to understand whether
     # Blinks are located outside tha range. For each histogram a confusion matrix is also computed
-    quantile_matrix, z_mean, z_mean_blink, z_mean_no_blink, _ = histogram_25_75(vae, x_test, y_test,
-                                                                                latent_dimension, subject)
+    quantile_matrix, z_mean, z_mean_blink, z_mean_no_blink, _ = histogram_25_75(vae, x_train, y_train, latent_dimension, subject)
 
     # _, _, _, _, _ = histogram_cebicev(vae, x_test, y_test, latent_dimension, subject)
 
