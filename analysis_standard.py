@@ -529,13 +529,13 @@ def mask_single_test_sample(latent_component_indices, autoencoder, x_test, subje
     to_client.append(file_name)
 
 
-def mask_test_set(latent_component_indices, autoencoder, x_test, subject):
+def mask_test_set(latent_component_indices, autoencoder, x_test, x_train, subject):
     # Usa questa funzione per salvare in un unico png tutte le immagini mascherate
     # di test con blink per un certo soggetto
 
-    # Il mascheramento va fatto considerando la moda delle immagini di test SENZA blink
-    x_test_no_blinks = get_x_test_no_blinks(x_test, y_test)
-    z = autoencoder.encoder(x_test_no_blinks, training=False)
+    # Il mascheramento va fatto considerando la moda delle immagini di train SENZA blink
+    x_train_no_blinks = get_x_train_no_blinks(x_train, y_train)
+    z_train_no_blinks = autoencoder.encoder(x_train_no_blinks, training=False)
 
     # Create a figure with multiple subplots
     num_rows = 2
@@ -543,12 +543,12 @@ def mask_test_set(latent_component_indices, autoencoder, x_test, subject):
     num_cols = len(x_test_blinks) // num_rows
     fig, axs = plt.subplots(num_rows, num_cols, figsize=(15, 7))
 
-    strategy = "Mode"  # or Median
+    strategy = "Median"  # or Mode
     for i, ax in enumerate(axs.ravel()):
-        z_masked = np.copy(z)
+        z_masked = np.copy(z_train_no_blinks)
         for latent_component_idx in latent_component_indices:
-            mode_value, _ = mode(z[:, latent_component_idx], keepdims=True)
-            z_masked[:, latent_component_idx] = mode_value
+            median = np.median(z_train_no_blinks[:, latent_component_idx])
+            z_masked[:, latent_component_idx] = median
 
         decoder_output_masked = autoencoder.decoder(z_masked, training=False)
         reconstructed_masked = decoder_output_masked[i]
@@ -602,14 +602,14 @@ def mask_test_set_reversed(latent_component_indices, autoencoder, x_test, subjec
     to_client.append(file_name)
 
 
-def get_x_test_no_blinks(x_test, y_test):
-    blink_indices = np.where(y_test == 0)[0]  # Only on test samples labelled with NO BLINK (0)
-    x_test = x_test[blink_indices]
-    y_test = y_test[blink_indices]
-    x_test_only_contains_no_blinks = all(y_test) == 0
-    if not x_test_only_contains_no_blinks:
-        raise Exception("Something went wrong while considering only no-blinks test images")
-    return x_test
+def get_x_train_no_blinks(x_train, y_train):
+    blink_indices = np.where(y_train == 0)[0]  # Only on train samples labelled with NO BLINK (0)
+    x_train = x_train[blink_indices]
+    y_train = y_train[blink_indices]
+    x_train_only_contains_no_blinks = all(y_train) == 0
+    if not x_train_only_contains_no_blinks:
+        raise Exception("Something went wrong while considering only no-blinks train images")
+    return x_train
 
 def get_x_test_blinks(x_test, y_test):
     blink_indices = np.where(y_test == 1)[0]  # Only on test samples labelled with BLINK (1)
@@ -683,7 +683,7 @@ if __name__ == '__main__':
     # The parameters must be the same before/after the load
     # check_weights_equality(f"w_before_{subject}_standard.pickle", autoencoder)
 
-    # avg_score for current combination (dbg)
+    """# avg_score for current combination (dbg)
     avg_score_dbg()
 
     # Save clusters - on server
@@ -727,15 +727,15 @@ if __name__ == '__main__':
 
     # For each latent component the ROC-AUC curve is created for detecting the quartile range which
     # Maximizes the TPR (True Positive Rate)
-    auc_roc(quantile_matrix, z_blink, z_no_blink, subject)
+    auc_roc(quantile_matrix, z_blink, z_no_blink, subject)"""
 
-    """# Mask relevant latent components
+    # Mask relevant latent components
     # "Relevant" means large IQR (implies more variance of data) and many TP blinks (outside the IQR)
-    mask_test_set(relevant_indices[subject], autoencoder, x_test, subject)  # maschera quelle specificate
-    mask_test_set_reversed(relevant_indices[subject], autoencoder, x_test, subject)  # maschera tutte tranne quelle specificate
+    mask_test_set(relevant_indices[subject], autoencoder, x_test, x_train, subject)  # maschera quelle specificate
+    # mask_test_set_reversed(relevant_indices[subject], autoencoder, x_test, subject)  # maschera tutte tranne quelle specificate
 
     x_test = get_x_test_blinks(x_test, y_test)
     save_test_blink_originals(x_test, subject)
-    save_test_blink_reconstructions(autoencoder, x_test, subject)"""
+    save_test_blink_reconstructions(autoencoder, x_test, subject)
 
     print(f"\nFinished. You can transfer to client: {to_client}")
