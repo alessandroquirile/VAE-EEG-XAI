@@ -409,6 +409,9 @@ def auc_roc(quantile_matrix, z_mean_blink, z_mean_no_blink, subject):
     num_rows = 7
     num_cols = 4
 
+    max_auc = -1
+    relevant_indices = []
+
     fig, axes = plt.subplots(num_rows, num_cols, figsize=(15, 20))
 
     for j in range(z_mean_blink.shape[1]):
@@ -438,6 +441,13 @@ def auc_roc(quantile_matrix, z_mean_blink, z_mean_no_blink, subject):
         # AUC
         auc = roc_auc_score(np.concatenate((np.zeros(len(FPR)), np.ones(len(TPR)))), np.concatenate((FPR, TPR)))
 
+        # Componente rilevante è quella con AUC massimo
+        if auc > max_auc:
+            max_auc = auc
+            relevant_indices = [j]
+        elif auc == max_auc:
+            relevant_indices.append(j)
+
         # Calcoliamo l'indice di riga e colonna del subplot
         row_index = j // num_cols
         col_index = j % num_cols
@@ -458,6 +468,8 @@ def auc_roc(quantile_matrix, z_mean_blink, z_mean_no_blink, subject):
     auc_roc_file_name = f"curve_auc_roc_{subject}.png"
     fig.savefig(auc_roc_file_name)
     to_client.append(auc_roc_file_name)
+
+    return relevant_indices, max_auc
 
 
 def print_latent_components_decreasing_variance(z_mean):
@@ -787,7 +799,7 @@ if __name__ == '__main__':
     avg_ssim, avg_mse, avg_score = calculate_score_test_set(x_test)
     print(f"\navg_ssim on test set: {avg_ssim:.4f}")
     print(f"avg_mse on test set: {avg_mse:.4f}")
-    print(f"avg_score on test set: {avg_score:.4f}")
+    print(f"avg_score on test set: {avg_score:.4f}")"""
 
     # For each latent component a histogram is created for analyzing the test data distribution
     # The 25th and 75th percentiles are computed for each latent component in order to understand whether
@@ -798,15 +810,16 @@ if __name__ == '__main__':
 
     # For each latent component the ROC-AUC curve is created for detecting the quartile range which
     # Maximizes the TPR (True Positive Rate)
-    auc_roc(quantile_matrix, z_mean_blink, z_mean_no_blink, subject)"""
+    relevant_indices = auc_roc(quantile_matrix, z_mean_blink, z_mean_no_blink, subject)
+    print(relevant_indices)
 
-    # Mask relevant latent components
+    """# Mask relevant latent components
     # "Relevant" means large IQR (implies more variance of data) and many TP blinks (outside the IQR)
     mask_test_set(relevant_indices[subject], vae, x_test, x_train, subject)  # maschera quelle specificate
     # mask_test_set_reversed(relevant_indices[subject], vae, x_test, subject)  # maschera tutte tranne quelle specificate
 
     x_test = get_x_test_blinks(x_test, y_test)
     save_test_blink_originals(x_test, subject)
-    save_test_blink_reconstructions(vae, x_test, subject)
+    save_test_blink_reconstructions(vae, x_test, subject)"""
 
     print(f"\nFinished. You can transfer to client: {to_client}")
