@@ -658,7 +658,7 @@ if __name__ == '__main__':
         # "s10": 1e-05  # Istogramma non significativo
     }
 
-    # Indici delle componenti latenti rilevanti per ciascun soggetto
+    """# Indici delle componenti latenti rilevanti per ciascun soggetto
     relevant_indices = {
         "s01": [0, 1, 7, 12],
         "s02": [0, 3, 4, 5, 11, 12, 16],
@@ -670,7 +670,7 @@ if __name__ == '__main__':
         # "s08": []  # Istogramma non significativo
         "s09": [2, 3, 24],
         # "s10": []  # Istogramma non significativo
-    }
+    }"""
 
     # Dati ridotti al solo intorno del blink
     subject = "s01"
@@ -755,7 +755,7 @@ if __name__ == '__main__':
 
     """# Mask relevant latent components
     # "Relevant" means large IQR (implies more variance of data) and many TP blinks (outside the IQR)
-    mask_test_set(relevant_indices[subject], autoencoder, x_test, x_train, subject)  # maschera quelle specificate
+    mask_test_set(top_k_indices, autoencoder, x_test, x_train, subject)  # maschera quelle specificate
     # mask_test_set_reversed(relevant_indices[subject], autoencoder, x_test, subject)  # maschera tutte tranne quelle specificate
 
     x_test = get_x_test_blinks(x_test, y_test)
