@@ -340,8 +340,9 @@ def auc_roc(quantile_matrix, z_blink, z_no_blink, subject):
     num_rows = 7
     num_cols = 4
 
-    max_auc = -1
-    relevant_indices = []
+    # max_auc = -1
+    # relevant_indices = []
+    auc_list = []  # Lista per salvare le coppie (indice, auc)
 
     fig, axes = plt.subplots(num_rows, num_cols, figsize=(15, 20))
 
@@ -372,12 +373,15 @@ def auc_roc(quantile_matrix, z_blink, z_no_blink, subject):
         # AUC
         auc = roc_auc_score(np.concatenate((np.zeros(len(FPR)), np.ones(len(TPR)))), np.concatenate((FPR, TPR)))
 
-        # Componente rilevante è quella con AUC massimo
+        # Aggiungiamo l'indice e l'AUC alla lista
+        auc_list.append((j, auc))
+
+        """# Componente rilevante è quella con AUC massimo
         if auc > max_auc:
             max_auc = auc
             relevant_indices = [j]
         elif auc == max_auc:
-            relevant_indices.append(j)
+            relevant_indices.append(j)"""
 
         # Calcoliamo l'indice di riga e colonna del subplot
         row_index = j // num_cols
@@ -400,7 +404,11 @@ def auc_roc(quantile_matrix, z_blink, z_no_blink, subject):
     fig.savefig(auc_roc_file_name)
     to_client.append(auc_roc_file_name)
 
-    return relevant_indices, max_auc
+    # Ordiniamo la lista in base ai valori di AUC in ordine decrescente
+    auc_list = sorted(auc_list, key=lambda x: x[1], reverse=True)
+
+    # return relevant_indices, max_auc
+    return auc_list
 
 
 def print_latent_components_decreasing_variance(z_mean):
@@ -739,8 +747,11 @@ if __name__ == '__main__':
 
     # For each latent component the ROC-AUC curve is created for detecting the quartile range which
     # Maximizes the TPR (True Positive Rate)
-    relevant_indices = auc_roc(quantile_matrix, z_blink, z_no_blink, subject)
-    print(relevant_indices)
+    auc_list = auc_roc(quantile_matrix, z_blink, z_no_blink, subject)
+    print(auc_list)
+    k = 1
+    top_k_indices = [pair[0] for pair in auc_list[:k]]
+    print("top_k_indices:", top_k_indices)
 
     """# Mask relevant latent components
     # "Relevant" means large IQR (implies more variance of data) and many TP blinks (outside the IQR)
