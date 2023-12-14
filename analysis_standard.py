@@ -142,8 +142,8 @@ def calculate_score_test_set(x_test):
     return avg_ssim, avg_mse, avg_score
 
 
-def histogram_25_75(vae, x_train, y_train, latent_dim, subject):
-    z = vae.encoder(x_train)
+def histogram_25_75(autoencoder, x_train, y_train, latent_dim, subject):
+    z = autoencoder.encoder(x_train)
 
     no_blink = []
     blink = []
@@ -163,9 +163,9 @@ def histogram_25_75(vae, x_train, y_train, latent_dim, subject):
     print('Il numero di non blink è:', len(no_blink))
     print('Il numero di transizioni è:', len(trans))
 
-    z_blink = vae.encoder(blink)
-    z_no_blink = vae.encoder(no_blink)
-    z_trans = vae.encoder(trans)
+    z_blink = autoencoder.encoder(blink)
+    z_no_blink = autoencoder.encoder(no_blink)
+    z_trans = autoencoder.encoder(trans)
 
     # Indici di dispersione.
     # Mediana: quantile di ordine 1/2
