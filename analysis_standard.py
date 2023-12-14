@@ -756,7 +756,7 @@ if __name__ == '__main__':
     """# Mask relevant latent components
     # "Relevant" means large IQR (implies more variance of data) and many TP blinks (outside the IQR)
     mask_test_set(top_k_indices, autoencoder, x_test, x_train, subject)  # maschera quelle specificate
-    # mask_test_set_reversed(relevant_indices[subject], autoencoder, x_test, subject)  # maschera tutte tranne quelle specificate
+    # mask_test_set_reversed(top_k_indices, autoencoder, x_test, subject)  # maschera tutte tranne quelle specificate
 
     x_test = get_x_test_blinks(x_test, y_test)
     save_test_blink_originals(x_test, subject)
