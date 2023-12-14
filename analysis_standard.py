@@ -198,7 +198,7 @@ def histogram_25_75(vae, x_train, y_train, latent_dim, subject):
         row_index = j // num_cols
         col_index = j % num_cols
         ax = axes[row_index, col_index]
-        ax.set_title(f'histogram latent component {j + 1}')
+        ax.set_title(f'histogram latent component {j}')
         ax.hist(z_blink[:, j], bins=100, color='green', alpha=0.6,
                 label=f'Blink. TP:{true_blink}, FN:{negative_blink}')
         ax.hist(z_no_blink[:, j], bins=100, color='violet', alpha=0.6,
@@ -394,7 +394,7 @@ def auc_roc(quantile_matrix, z_blink, z_no_blink, subject):
 
         ax.set_xlabel('False Positive Rate (FPR)')
         ax.set_ylabel('True Positive Rate (TPR)')
-        ax.set_title(f'Colonna - latent component {j + 1}')
+        ax.set_title(f'Colonna - latent component {j}')
         ax.legend(loc='lower right')
 
     # Impostiamo lo spazio tra i subplot
@@ -758,8 +758,8 @@ if __name__ == '__main__':
     mask_test_set(top_k_indices, autoencoder, x_test, x_train, subject)  # maschera quelle specificate
     # mask_test_set_reversed(top_k_indices, autoencoder, x_test, subject)  # maschera tutte tranne quelle specificate
 
-    x_test = get_x_test_blinks(x_test, y_test)
-    save_test_blink_originals(x_test, subject)
-    save_test_blink_reconstructions(autoencoder, x_test, subject)"""
+    # x_test = get_x_test_blinks(x_test, y_test)
+    # save_test_blink_originals(x_test, subject)
+    # save_test_blink_reconstructions(autoencoder, x_test, subject)"""
 
     print(f"\nFinished. You can transfer to client: {to_client}")
