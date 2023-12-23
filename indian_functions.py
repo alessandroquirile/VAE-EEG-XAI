@@ -106,6 +106,9 @@ def createTopographicMapFromChannelValues(channelValues, rawDatasetReReferenced,
     NumberOfEEGChannel = 32
     pos2D = np.array(convert3DTo2D(get3DCoordinates(MontageChannelLocation, NumberOfEEGChannel)))
 
+    # np.mgrid[-1:1:5j]
+    # array([-1., -0.5, 0., 0.5, 1.])
+
     grid_x, grid_y = np.mgrid[
                      min(pos2D[:, 0]):max(pos2D[:, 0]):lengthOfTopographicMap * 1j,
                      min(pos2D[:, 1]):max(pos2D[:, 1]):lengthOfTopographicMap * 1j
@@ -137,4 +140,87 @@ def createTopographicMapFromChannelValues(channelValues, rawDatasetReReferenced,
         plt.imshow(interpolatedTopographicMap)
         plt.show()
 
-    return interpolatedTopographicMap, CordinateYellowRegion
+    return interpolatedTopographicMap, CordinateYellowRegion, pos2D
+
+
+def retrieveChannelInfoFromInterpolatedMap(interpolatedMap, CordinateYellowRegion, lengthOfTopographicMap, MontageChannelLocation, NumberOfEEGChannel, channelNames, onlyValues=False):
+    pixelCoordinates = get2DTopographicMapChannelIndexes(lengthOfTopographicMap, CordinateYellowRegion, MontageChannelLocation, NumberOfEEGChannel)
+    channelInfoFromInterpolatedMap = []
+    i = 0
+    for c in pixelCoordinates:
+        x = c[0]
+        y = c[1]
+        channelValue = interpolatedMap[x][y]
+        if (onlyValues):
+            channelInfoFromInterpolatedMap.append(channelValue)
+        else:
+            channelInfoFromInterpolatedMap.append((channelNames[i], channelValue))
+        i += 1
+
+    return channelInfoFromInterpolatedMap
+
+
+# Compute 2D coordinates of pixels in the topographic map, as (x,y coordinates)
+def getMatrixIndexesFrom2DPositions(xPos, yPos, minX, minY, maxX, maxY, numChannels, CordinateYellowRegion,
+                                    lengthOfTopographicMap, verbose=False):
+    # rescaling inputs coordinates into specific indexes of a numChannels X numChannels matrix, with min-max normalisation algorithm
+    # remove -1 from numChannels because the indexes start with 0
+    x = ((xPos - minX) * (numChannels - 1 - 0)) / (maxX - minX)
+    y = ((yPos - minY) * (numChannels - 1 - 0)) / (maxY - minY)
+
+    # round integer to the nearest integer
+    indexX = round(x)
+    indexY = round(y)
+
+    if [indexX, indexY] not in CordinateYellowRegion.tolist():
+        indexX1, indexY1 = indexX, indexY
+
+    elif (([indexX, indexY + 1] not in CordinateYellowRegion.tolist()) and (
+            [indexX, indexY + 1] != [indexX, lengthOfTopographicMap])):
+        indexX1, indexY1 = indexX, indexY + 1
+
+    elif [indexX, indexY - 1] not in CordinateYellowRegion.tolist():
+        indexX1, indexY1 = indexX, indexY - 1
+
+    elif ([indexX - 1, indexY] not in CordinateYellowRegion.tolist()) and ([indexX - 1, indexY] != [-1, indexY]):
+        indexX1, indexY1 = indexX - 1, indexY
+
+    else:
+        indexX1, indexY1 = indexX + 1, indexY
+
+    if verbose:
+        print("Tranformed positions: {},  {} - Generated matrix indeces: {}, {}".format(x, y, indexX, indexY))
+
+    return indexX1, indexY1
+
+
+def get2DTopographicMapChannelIndexes(lengthOfTopographicMap, CordinateYellowRegion, MontageChannelLocation, NumberOfEEGChannel):
+    pos3D = get3DCoordinates(MontageChannelLocation, NumberOfEEGChannel)
+    pos2D = []
+
+    minX, maxX, minY, maxY = 0, 0, 0, 0
+    for e in pos3D:
+        newPos = (azim_proj(e))
+        pos2D.append(newPos)
+
+        if (newPos[0] < minX):
+            minX = newPos[0]
+        if (newPos[1] < minY):
+            minY = newPos[1]
+        if (newPos[0] > maxX):
+            maxX = newPos[0]
+        if (newPos[1] > maxY):
+            maxY = newPos[1]
+
+    channelLocs = np.array(pos2D)
+    xMatrixIndices = []
+    yMatrixIndices = []
+    coordinates2dWithoutScale = []
+    for ch in channelLocs:
+        x, y = getMatrixIndexesFrom2DPositions(ch[0], ch[1], minX, minY, maxX, maxY, NumberOfEEGChannel,
+                                               CordinateYellowRegion, lengthOfTopographicMap, verbose=False)
+        xMatrixIndices.append(x)
+        yMatrixIndices.append(y)
+        coordinates2dWithoutScale.append((x, y))
+
+    return coordinates2dWithoutScale
