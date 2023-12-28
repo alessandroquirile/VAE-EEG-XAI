@@ -229,9 +229,9 @@ if __name__ == '__main__':
                 canale_selezionato = 0
                 # Tracciamento del segnale nel tempo per il canale selezionato dalle due matrici
                 plt.figure(figsize=(10, 6))
-                plt.plot(asse_x, channel_values[canale_selezionato], label='True')
-                plt.plot(asse_x, interpolated_values[canale_selezionato], label='Int')
-                plt.plot(asse_x, reconstructed_values[canale_selezionato], label='Rec', linestyle='--')
+                plt.plot(asse_x, channel_values[canale_selezionato], label='Channel')
+                plt.plot(asse_x, interpolated_values[canale_selezionato], label='Interpolated')
+                plt.plot(asse_x, reconstructed_values[canale_selezionato], label='Reconstructed', linestyle='--')
                 plt.xlabel('Tempo (s)')
                 plt.ylabel('Intensità del segnale')
                 plt.title(f'{file}. Segnale nel tempo per il canale {canale_selezionato}')
