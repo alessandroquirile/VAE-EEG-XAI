@@ -82,6 +82,8 @@ if __name__ == '__main__':
     signal_values_folder = "signal_values"
     os.makedirs(signal_values_folder, exist_ok=True)
 
+    print(f"\n>>> QUESTO SCRIPT CREA LA CARTELLA {signal_values_folder} <<<")
+
     for subject in tqdm(subjects, desc="Processing subjects", unit="subject"):
 
         pos2D = []

@@ -78,9 +78,7 @@ if __name__ == '__main__':
     subjects = list(magic_numbers.keys())
     montage = mne.channels.make_standard_montage('biosemi32')
 
-    # Creazione della cartella values
-    signal_values_folder = "signal_values"
-    os.makedirs(signal_values_folder, exist_ok=True)
+    print("\n>>> QUESTO SCRIPT MOSTRA I GRAFICI DEI SEGNALI CHANNEL, INTERPOLATED E RECONSTRUCTED <<<")
 
     for subject in tqdm(subjects, desc="Processing subjects", unit="subject"):
 
@@ -120,11 +118,6 @@ if __name__ == '__main__':
 
             trial_lowest_peak = np.min(filtered_data)
             trial_highest_peak = np.max(filtered_data)
-
-            save_events('events', subject, trial, events, index, sample_rate,
-                        subject_lowest_peak, subject_highest_peak, magic_number,
-                        trial_lowest_peak, trial_highest_peak,
-                        thresh)
 
             cropped_raw_eeg = crop(raw, index, EEG)
 
@@ -199,11 +192,11 @@ if __name__ == '__main__':
             channel_values = np.array(channel_values).transpose()
 
             # Topomaps modified
-            my_list2 = []
             subject_without_extension = subject.rsplit(".", 1)[0]
             trial_with_leading_zero = str(trial).zfill(2)
             topomaps_files_mod = os.listdir(f"topomaps_reduced_{subject_without_extension}_mod")
             for file in topomaps_files_mod:
+                my_list2 = []
                 trial_topomaps_mod = np.load(f"topomaps_reduced_{subject_without_extension}_mod/{subject_without_extension}_trial{trial_with_leading_zero}.npy")
                 for i in range(trial_topomaps_mod.shape[0]):
                     trial_topomaps_i_mod = trial_topomaps_mod[i]
@@ -241,32 +234,9 @@ if __name__ == '__main__':
                 plt.plot(asse_x, reconstructed_values[canale_selezionato], label='Rec', linestyle='--')
                 plt.xlabel('Tempo (s)')
                 plt.ylabel('Intensità del segnale')
-                plt.title(f'{subject} trial:{trial}. Segnale nel tempo per il canale {canale_selezionato}')
+                plt.title(f'{file}. Segnale nel tempo per il canale {canale_selezionato}')
                 plt.legend()
                 plt.grid(True)
                 plt.show()
 
-                # Salvo i channel_values e gli interpolated_values
-                # (32,128) => (n_blink,32,128)
-                n_blinks = len(events[:, 0])
-                channel_values = np.expand_dims(channel_values, axis=0)
-                channel_values = np.repeat(channel_values, n_blinks, axis=0)
-                interpolated_values = np.expand_dims(interpolated_values, axis=0)
-                interpolated_values = np.repeat(interpolated_values, n_blinks, axis=0)
-
-                # Saving channel_values
-                subject_without_extension = subject.rsplit(".", 1)[0]
-                channel_values_folder = f"channel_values_{subject_without_extension}"
-                os.makedirs(os.path.join(signal_values_folder, channel_values_folder), exist_ok=True)
-                trial_with_leading_zero = str(trial).zfill(2)
-                file_name = f"{subject_without_extension}_trial{trial_with_leading_zero}.npy"
-                np.save(os.path.join(signal_values_folder, channel_values_folder, file_name), channel_values)
-
-                # Saving interpolated_values
-                interpolated_values_folder = f"interpolated_values_{subject_without_extension}"
-                os.makedirs(os.path.join(signal_values_folder, interpolated_values_folder), exist_ok=True)
-                np.save(os.path.join(signal_values_folder, interpolated_values_folder, file_name), interpolated_values)
-
             # exit(0)
-
-    print(f"Saved data to {signal_values_folder}")

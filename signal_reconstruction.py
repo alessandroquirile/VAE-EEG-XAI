@@ -106,9 +106,63 @@ def denormalize(x_normalized, x_test):
     x = (x_normalized * (x_max - x_min)) + x_min
     return x
 
+def process_topomaps(x_test_blinks, subject, x_test, topomaps_files, topomaps_folder, my_topomaps_dict):
+    # Per ogni topomap in x_test_blinks
+    for i in range(x_test_blinks.shape[0]):
+        # Mi carico la ricostruzione mascherata della topomap corrente e denormalizzo
+        masked_rec = np.load(f"masked_rec_standard/{subject}/x_test_{i}.npy")
+        masked_rec_denormalized = denormalize(masked_rec, x_test)
+
+        # Per ogni file in topomaps_file (es. s01_trial36.npy, s01_trial17.npy...)
+        for file in topomaps_files:
+            # Mi carico il file .npy associato e ne faccio una copia per sicurezza
+            topomaps_array = np.load(f"{topomaps_folder}/{file}")
+            topomaps_array_modified = np.copy(topomaps_array)
+
+            # Per ogni topomap del file corrente es s01_trial36.npy (132,...) quindi ciascuno delle 132 immagini
+            for j in range(topomaps_array.shape[0]):
+                # Se la topomap corrente corrisponde ad una topomap in topomaps_array
+                if np.all(x_test_blinks[i] == topomaps_array[j]):
+                    # Modifica specifici elementi nell'array topomaps_array_modified utilizzando
+                    # gli indici specificati nel dict
+                    for elem in my_topomaps_dict[file]["topomaps_array_test"]:
+                        topomaps_array_modified[elem] = masked_rec_denormalized[i]
+
+            # Salvo gli array modificati in una cartella
+            folder = f"{topomaps_folder}_mod"
+            os.makedirs(folder, exist_ok=True)
+            file_name = f"{file}"
+            np.save(os.path.join(folder, file_name), topomaps_array_modified)
+
+def find_matching_indices_in_topomaps(x_blinks, topomaps_files, topomaps_folder, my_topomaps_dict, is_train=True):
+    blink_type = "train" if is_train else "test"
+    for i in range(x_blinks.shape[0]):
+        found = False
+        for file in topomaps_files:
+            topomaps_array = np.load(f"{topomaps_folder}/{file}")
+            for j in range(topomaps_array.shape[0]):
+                if np.all(x_blinks[i] == topomaps_array[j]):
+                    if file not in my_topomaps_dict:
+                        my_topomaps_dict[file] = {'topomaps_array_train': [],
+                                                  'x_train_blinks': [],
+                                                  'topomaps_array_test': [],
+                                                  'x_test_blinks': []}
+                    if is_train:
+                        my_topomaps_dict[file]['topomaps_array_train'].append(j)
+                        my_topomaps_dict[file]['x_train_blinks'].append(i)
+                    else:
+                        my_topomaps_dict[file]['topomaps_array_test'].append(j)
+                        my_topomaps_dict[file]['x_test_blinks'].append(i)
+                    found = True
+                    print(f"x_{blink_type}_blinks[{i}] == topomaps_array[{j}] e compare nel file {file}")
+        if not found:
+            raise Exception(f"x_{blink_type}_blinks[{i}] non è stato trovato in alcun file")
+    print("\n")
 
 if __name__ == '__main__':
     print("TensorFlow GPU usage:", tf.config.list_physical_devices('GPU'))
+
+    print("\n>>> QUESTO SCRIPT RICOSTRUISCE IL SEGNALE DALLE TOPOMAPS <<<")
 
     # Dati ridotti al solo intorno del blink
     subject = "s01"
@@ -119,80 +173,23 @@ if __name__ == '__main__':
     x_train, x_test, y_train, y_test = load_data(topomaps_folder, labels_folder,
                                                  0.2, False, 42)
 
-    # Expand dimensions to (None, 40, 40, 1)
-    # This is because VAE is currently working with 4d tensors
-    # x_train = expand(x_train)
-    # x_test = expand(x_test)
-
     # Only blinks
     x_train_blinks = get_x_with_blinks(x_train, y_train)
     x_test_blinks = get_x_with_blinks(x_test, y_test)
 
-    """# Denormalization
-    x_train_min, x_train_max = get_min_max(x_train)
-    x_test_min, x_test_max = get_min_max(x_test)"""
-
+    # es. s01_trial36.npy, s01_trial17.npy...
     topomaps_files = [files for files in os.listdir(topomaps_folder) if not files.endswith('.DS_Store')]
-    # x_test_blinks = np.squeeze(x_test_blinks)  # (None, 40, 40)  NECESSARIO SOLO SE FAI EXPAND
 
-    my_topomaps_dict = {}  # s01_trial37: [a,b,c]
-    topomaps_array = None
-    topomaps_array_modified = None
+    # Trove le corrispondenze tra x_train_blinks/x_test_blinks e le topomaps
+    my_topomaps_dict = {}
+    find_matching_indices_in_topomaps(x_train_blinks, topomaps_files, topomaps_folder, my_topomaps_dict, is_train=True)
+    find_matching_indices_in_topomaps(x_test_blinks, topomaps_files, topomaps_folder, my_topomaps_dict, is_train=False)
 
-    found = False
-    for i in range(x_train_blinks.shape[0]):
-        for file in topomaps_files:
-            topomaps_array = np.load(f"{topomaps_folder}/{file}")
-            for j in range(topomaps_array.shape[0]):
-                if np.all(x_train_blinks[i] == topomaps_array[j]):
-                    if file not in my_topomaps_dict:
-                        my_topomaps_dict[file] = {'topomaps_array_train': [],
-                                                  'x_train_blinks': [],
-                                                  'topomaps_array_test': [],
-                                                  'x_test_blinks': []}
-                    my_topomaps_dict[file]['topomaps_array_train'].append(j)
-                    my_topomaps_dict[file]['x_train_blinks'].append(i)
-                    found = True
-                    print(f"x_train_blinks[{i}] == topomaps_array[{j}] e compare nel file {file}")
-        if not found:
-            raise Exception(f"x_train_blinks[{i}] non è stato trovato in alcun file")
-
-    print("\n")
-    # Verifico dove compare ciascun x_test_blinks nei file
-    found = False
-    for i in range(x_test_blinks.shape[0]):
-        for file in topomaps_files:
-            topomaps_array = np.load(f"{topomaps_folder}/{file}")
-            for j in range(topomaps_array.shape[0]):
-                if np.all(x_test_blinks[i] == topomaps_array[j]):
-                    my_topomaps_dict[file]['topomaps_array_test'].append(j)
-                    my_topomaps_dict[file]['x_test_blinks'].append(i)
-                    found = True
-                    print(f"x_test_blinks[{i}] == topomaps_array[{j}] e compare nel file {file}")
-        if not found:
-            raise Exception(f"x_test_blinks[{i}] non è stato trovato in alcun file")
-
-    # Occorre sostituire a tali file quelli ottenuti dal mascheramento
-    # Siccome nel (V)AE viene fatta la normalizzazione, occorre fare una denormalizzazione dei dati
-    for i in range(x_test_blinks.shape[0]):
-        masked_rec = np.load(f"masked_rec_standard/{subject}/x_test_{i}.npy")
-        masked_rec_denormalized = denormalize(masked_rec, x_test)  # Denormalizzazione
-        for file in topomaps_files:
-            topomaps_array = np.load(f"{topomaps_folder}/{file}")
-            topomaps_array_modified = np.copy(topomaps_array)
-            for j in range(topomaps_array.shape[0]):
-                if np.all(x_test_blinks[i] == topomaps_array[j]):
-                    for elem in my_topomaps_dict[file]["topomaps_array_test"]:
-                        topomaps_array_modified[elem] = masked_rec_denormalized[i]
-            # Salvataggio topomaps_array_modified
-            folder = f"{topomaps_folder}_mod"
-            os.makedirs(folder, exist_ok=True)
-            file_name = f"{file}"
-            np.save(os.path.join(folder, file_name), topomaps_array_modified)
+    process_topomaps(x_test_blinks, subject, x_test, topomaps_files, topomaps_folder, my_topomaps_dict)
 
     # TODO:
     #  1. Salvare in masked_rec_standard i dati di train mascherati
     #  2. Sostituire alle topomaps file quelli ottenuti dal mascheramento (come 172-186)
-    #  3. Ripetere topomaps_modified.py per i dati di train
+    #  3. Ripetere signal_topomaps_modified.py per i dati di train
     #  4. Dare in input al modello i dati dentro la cartella topomaps_reduced_s01_mod
     #  5. Passaggio al segnale di questi dati ricostruiti
