@@ -632,6 +632,8 @@ def mask_test_set(latent_component_indices, vae, x_test, x_train, subject):
     num_cols = len(x_test_blinks) // num_rows
     fig, axs = plt.subplots(num_rows, num_cols, figsize=(15, 7))
 
+    reconstructions_folder = ""
+
     strategy = "Median"  # or Mode
     for i, ax in enumerate(axs.ravel()):
         z_masked = np.copy(z_train_no_blinks)
@@ -642,9 +644,17 @@ def mask_test_set(latent_component_indices, vae, x_test, x_train, subject):
         decoder_output_masked = vae.decoder(z_masked, training=False)
         reconstructed_masked = decoder_output_masked[i]
 
+        # Salvo le ricostruzioni mascherate
+        reconstructions_folder = f"masked_rec/{subject}"
+        os.makedirs(reconstructions_folder, exist_ok=True)
+        file_path = f"{reconstructions_folder}/x_test_{i}.npy"
+        np.save(file_path, reconstructed_masked)
+
         ax.imshow(reconstructed_masked, cmap="gray")
         ax.set_title(f"x_test[{i}]")
         ax.axis('off')
+
+    to_client.append(reconstructions_folder)
 
     # Save the entire figure
     fig.suptitle(f"{subject} test blinks. Mask strategy is: {strategy}", fontsize=26)

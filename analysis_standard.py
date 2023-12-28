@@ -563,6 +563,8 @@ def mask_test_set(latent_component_indices, autoencoder, x_test, x_train, subjec
     num_cols = len(x_test_blinks) // num_rows
     fig, axs = plt.subplots(num_rows, num_cols, figsize=(15, 7))
 
+    reconstructions_folder = ""
+
     strategy = "Median"  # or Mode
     for i, ax in enumerate(axs.ravel()):
         z_masked = np.copy(z_train_no_blinks)
@@ -573,9 +575,17 @@ def mask_test_set(latent_component_indices, autoencoder, x_test, x_train, subjec
         decoder_output_masked = autoencoder.decoder(z_masked, training=False)
         reconstructed_masked = decoder_output_masked[i]
 
+        # Salvo le ricostruzioni mascherate
+        reconstructions_folder = f"masked_rec_standard/{subject}"
+        os.makedirs(reconstructions_folder, exist_ok=True)
+        file_path = f"{reconstructions_folder}/x_test_{i}.npy"
+        np.save(file_path, reconstructed_masked)
+
         ax.imshow(reconstructed_masked, cmap="gray")
         ax.set_title(f"x_test[{i}]")
         ax.axis('off')
+
+    to_client.append(reconstructions_folder)
 
     # Save the entire figure
     fig.suptitle(f"{subject} test blinks. Mask strategy is: {strategy}", fontsize=26)
@@ -748,10 +758,10 @@ if __name__ == '__main__':
     # For each latent component the ROC-AUC curve is created for detecting the quartile range which
     # Maximizes the TPR (True Positive Rate)
     auc_list = auc_roc(quantile_matrix, z_blink, z_no_blink, subject)
-    print(auc_list)
+    # print(auc_list)
     k = 1
     top_k_indices = [pair[0] for pair in auc_list[:k]]
-    print("top_k_indices:", top_k_indices)
+    # print("top_k_indices:", top_k_indices)
 
     """# Mask relevant latent components
     # "Relevant" means large IQR (implies more variance of data) and many TP blinks (outside the IQR)
