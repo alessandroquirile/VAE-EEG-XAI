@@ -15,7 +15,9 @@ from sklearn.model_selection import train_test_split, KFold
 from tensorflow.python.ops.numpy_ops import np_config
 from tqdm import tqdm
 
+from indian_functions import retrieveChannelInfoFromInterpolatedMap
 from models import *
+
 
 def load_data(topomaps_folder: str, labels_folder: str, test_size, anomaly_detection, random_state):
     x, y = _create_dataset(topomaps_folder, labels_folder)
@@ -76,6 +78,7 @@ def _create_dataset(topomaps_folder, labels_folder):
 
     return x, y
 
+
 def expand(x):
     return np.expand_dims(x, -1).astype("float32")
 
@@ -87,14 +90,22 @@ def normalize(x):
 def get_min_max(x):
     return np.min(x), np.max(x)
 
-def get_x_test_blinks(x_test, y_test):
-    blink_indices = np.where(y_test == 1)[0]  # Only on test samples labelled with BLINK (1)
-    x_test = x_test[blink_indices]
-    y_test = y_test[blink_indices]
-    x_test_only_contains_blinks = all(y_test) == 1
-    if not x_test_only_contains_blinks:
-        raise Exception("Something went wrong while considering only blinks test images")
-    return x_test
+
+def get_x_with_blinks(x, y):
+    blink_indices = np.where(y == 1)[0]  # Only on test samples labelled with BLINK (1)
+    x = x[blink_indices]
+    y = y[blink_indices]
+    x_only_contains_blinks = all(y) == 1
+    if not x_only_contains_blinks:
+        raise Exception("Something went wrong while considering only blinks images")
+    return x
+
+
+def denormalize(x_normalized, x_test):
+    x_min, x_max = get_min_max(x_test)
+    x = (x_normalized * (x_max - x_min)) + x_min
+    return x
+
 
 if __name__ == '__main__':
     print("TensorFlow GPU usage:", tf.config.list_physical_devices('GPU'))
@@ -114,7 +125,8 @@ if __name__ == '__main__':
     # x_test = expand(x_test)
 
     # Only blinks
-    x_test_blinks = get_x_test_blinks(x_test, y_test)
+    x_train_blinks = get_x_with_blinks(x_train, y_train)
+    x_test_blinks = get_x_with_blinks(x_test, y_test)
 
     """# Denormalization
     x_train_min, x_train_max = get_min_max(x_train)
@@ -123,14 +135,64 @@ if __name__ == '__main__':
     topomaps_files = [files for files in os.listdir(topomaps_folder) if not files.endswith('.DS_Store')]
     # x_test_blinks = np.squeeze(x_test_blinks)  # (None, 40, 40)  NECESSARIO SOLO SE FAI EXPAND
 
+    my_topomaps_dict = {}  # s01_trial37: [a,b,c]
+    topomaps_array = None
+    topomaps_array_modified = None
+
+    found = False
+    for i in range(x_train_blinks.shape[0]):
+        for file in topomaps_files:
+            topomaps_array = np.load(f"{topomaps_folder}/{file}")
+            for j in range(topomaps_array.shape[0]):
+                if np.all(x_train_blinks[i] == topomaps_array[j]):
+                    if file not in my_topomaps_dict:
+                        my_topomaps_dict[file] = {'topomaps_array_train': [],
+                                                  'x_train_blinks': [],
+                                                  'topomaps_array_test': [],
+                                                  'x_test_blinks': []}
+                    my_topomaps_dict[file]['topomaps_array_train'].append(j)
+                    my_topomaps_dict[file]['x_train_blinks'].append(i)
+                    found = True
+                    print(f"x_train_blinks[{i}] == topomaps_array[{j}] e compare nel file {file}")
+        if not found:
+            raise Exception(f"x_train_blinks[{i}] non è stato trovato in alcun file")
+
+    print("\n")
+    # Verifico dove compare ciascun x_test_blinks nei file
     found = False
     for i in range(x_test_blinks.shape[0]):
         for file in topomaps_files:
             topomaps_array = np.load(f"{topomaps_folder}/{file}")
             for j in range(topomaps_array.shape[0]):
                 if np.all(x_test_blinks[i] == topomaps_array[j]):
+                    my_topomaps_dict[file]['topomaps_array_test'].append(j)
+                    my_topomaps_dict[file]['x_test_blinks'].append(i)
                     found = True
                     print(f"x_test_blinks[{i}] == topomaps_array[{j}] e compare nel file {file}")
         if not found:
             raise Exception(f"x_test_blinks[{i}] non è stato trovato in alcun file")
 
+    # Occorre sostituire a tali file quelli ottenuti dal mascheramento
+    # Siccome nel (V)AE viene fatta la normalizzazione, occorre fare una denormalizzazione dei dati
+    for i in range(x_test_blinks.shape[0]):
+        masked_rec = np.load(f"masked_rec_standard/{subject}/x_test_{i}.npy")
+        masked_rec_denormalized = denormalize(masked_rec, x_test)  # Denormalizzazione
+        for file in topomaps_files:
+            topomaps_array = np.load(f"{topomaps_folder}/{file}")
+            topomaps_array_modified = np.copy(topomaps_array)
+            for j in range(topomaps_array.shape[0]):
+                if np.all(x_test_blinks[i] == topomaps_array[j]):
+                    for elem in my_topomaps_dict[file]["topomaps_array_test"]:
+                        topomaps_array_modified[elem] = masked_rec_denormalized[i]
+            # Salvataggio topomaps_array_modified
+            folder = f"{topomaps_folder}_mod"
+            os.makedirs(folder, exist_ok=True)
+            file_name = f"{file}"
+            np.save(os.path.join(folder, file_name), topomaps_array_modified)
+
+    # TODO:
+    #  1. Salvare in masked_rec_standard i dati di train mascherati
+    #  2. Sostituire alle topomaps file quelli ottenuti dal mascheramento (come 172-186)
+    #  3. Ripetere topomaps_modified.py per i dati di train
+    #  4. Dare in input al modello i dati dentro la cartella topomaps_reduced_s01_mod
+    #  5. Passaggio al segnale di questi dati ricostruiti
