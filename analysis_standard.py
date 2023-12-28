@@ -549,9 +549,9 @@ def mask_single_test_sample(latent_component_indices, autoencoder, x_test, subje
     to_client.append(file_name)
 
 
-def mask_test_set(latent_component_indices, autoencoder, x_test, x_train, subject):
+def mask_set(latent_component_indices, autoencoder, x_test, x_train, subject, is_train=False):
     # Usa questa funzione per salvare in un unico png tutte le immagini mascherate
-    # di test con blink per un certo soggetto
+    # con blink per un certo soggetto (se is_train=False)
 
     # Il mascheramento va fatto considerando la moda delle immagini di train SENZA blink
     x_train_no_blinks = get_x_train_no_blinks(x_train, y_train)
@@ -559,11 +559,14 @@ def mask_test_set(latent_component_indices, autoencoder, x_test, x_train, subjec
 
     # Create a figure with multiple subplots
     num_rows = 2
-    x_test_blinks = get_x_test_blinks(x_test, y_test)
-    num_cols = len(x_test_blinks) // num_rows
-    fig, axs = plt.subplots(num_rows, num_cols, figsize=(15, 7))
+    if is_train:
+        x_train_blinks = get_x_with_blinks(x_train, y_train)
+        num_cols = len(x_train_blinks) // num_rows
+    else:
+        x_test_blinks = get_x_with_blinks(x_test, y_test)
+        num_cols = len(x_test_blinks) // num_rows
 
-    reconstructions_folder = ""
+    fig, axs = plt.subplots(num_rows, num_cols, figsize=(15, 7))
 
     strategy = "Median"  # or Mode
     for i, ax in enumerate(axs.ravel()):
@@ -575,61 +578,28 @@ def mask_test_set(latent_component_indices, autoencoder, x_test, x_train, subjec
         decoder_output_masked = autoencoder.decoder(z_masked, training=False)
         reconstructed_masked = decoder_output_masked[i]
 
-        # Salvo le ricostruzioni mascherate
         reconstructions_folder = f"masked_rec_standard/{subject}"
         os.makedirs(reconstructions_folder, exist_ok=True)
-        file_path = f"{reconstructions_folder}/x_test_{i}.npy"
-        np.save(file_path, reconstructed_masked)
+        if is_train:
+            # Salvo le ricostruzioni mascherate sotto forma di .npy, non mi interessa anche il png
+            file_path = f"{reconstructions_folder}/x_train_{i}.npy"
+            np.save(file_path, reconstructed_masked)
+        else:
+            # Salvo le ricostruzioni mascherate sotto forma di .npy
+            file_path = f"{reconstructions_folder}/x_test_{i}.npy"
+            np.save(file_path, reconstructed_masked)
 
-        ax.imshow(reconstructed_masked, cmap="gray")
-        ax.set_title(f"x_test[{i}]")
-        ax.axis('off')
+            # Salvo il png con tutte le ricostruzioni mascherate, nel caso di test set
+            ax.imshow(reconstructed_masked, cmap="gray")
+            ax.set_title(f"x_test[{i}]")
+            ax.axis('off')
+            # Save the entire figure
+            fig.suptitle(f"{subject} test blinks. Mask strategy is: {strategy}", fontsize=26)
+            file_name = f"z{'_'.join(map(str, latent_component_indices))}_{strategy.lower()}_{subject}_test_standard.png"
+            fig.savefig(file_name)
 
-    to_client.append(reconstructions_folder)
-
-    # Save the entire figure
-    fig.suptitle(f"{subject} test blinks. Mask strategy is: {strategy}", fontsize=26)
-    file_name = f"z{'_'.join(map(str, latent_component_indices))}_{strategy.lower()}_{subject}_standard.png"
-    fig.savefig(file_name)
-    to_client.append(file_name)
-
-
-def mask_test_set_reversed(latent_component_indices, autoencoder, x_test, subject):
-    # Usa questa funzione per salvare in un unico png tutte le immagini mascherate
-    # di test con blink per un certo soggetto
-    # REVERSED nel senso che legge gli indici ma maschera TUTTI GLI ALTRI
-
-    # Il mascheramento va fatto considerando la moda delle immagini di test SENZA blink
-    x_test_no_blinks = get_x_test_no_blinks(x_test, y_test)
-    z = autoencoder.encoder(x_test_no_blinks, training=False)
-
-    # Create a figure with multiple subplots
-    num_rows = 2
-    x_test_blinks = get_x_test_blinks(x_test, y_test)
-    num_cols = len(x_test_blinks) // num_rows
-    fig, axs = plt.subplots(num_rows, num_cols, figsize=(15, 7))
-
-    strategy = "Mode_reversed"  # or Median
-    for i, ax in enumerate(axs.ravel()):
-        z_masked = np.copy(z)
-        for latent_component_idx in range(z.shape[1]):
-            # Maschera tutti gli altri tranne quelli specificati
-            if latent_component_idx not in latent_component_indices:
-                mode_value, _ = mode(z[:, latent_component_idx], keepdims=True)
-                z_masked[:, latent_component_idx] = mode_value
-
-        decoder_output_masked = autoencoder.decoder(z_masked, training=False)
-        reconstructed_masked = decoder_output_masked[i]
-
-        ax.imshow(reconstructed_masked, cmap="gray")
-        ax.set_title(f"x_test[{i}]")
-        ax.axis('off')
-
-    # Save the entire figure
-    fig.suptitle(f"{subject} test blinks. Mask strategy is: {strategy}", fontsize=26)
-    file_name = f"z{'_'.join(map(str, latent_component_indices))}_{strategy.lower()}_{subject}_standard.png"
-    fig.savefig(file_name)
-    to_client.append(file_name)
+    if "masked_rec_standard/" not in to_client:
+        to_client.append("masked_rec_standard/")
 
 
 def get_x_train_no_blinks(x_train, y_train):
@@ -641,14 +611,14 @@ def get_x_train_no_blinks(x_train, y_train):
         raise Exception("Something went wrong while considering only no-blinks train images")
     return x_train
 
-def get_x_test_blinks(x_test, y_test):
-    blink_indices = np.where(y_test == 1)[0]  # Only on test samples labelled with BLINK (1)
-    x_test = x_test[blink_indices]
-    y_test = y_test[blink_indices]
-    x_test_only_contains_blinks = all(y_test) == 1
-    if not x_test_only_contains_blinks:
-        raise Exception("Something went wrong while considering only blinks test images")
-    return x_test
+def get_x_with_blinks(x, y):
+    blink_indices = np.where(y == 1)[0]  # Only samples labelled with BLINK (1)
+    x = x[blink_indices]
+    y = y[blink_indices]
+    x_only_contains_blinks = all(y) == 1
+    if not x_only_contains_blinks:
+        raise Exception("Something went wrong while considering only blinks images")
+    return x
 
 
 if __name__ == '__main__':
@@ -763,13 +733,13 @@ if __name__ == '__main__':
     top_k_indices = [pair[0] for pair in auc_list[:k]]
     # print("top_k_indices:", top_k_indices)
 
-    """# Mask relevant latent components
+    # Mask relevant latent components
     # "Relevant" means large IQR (implies more variance of data) and many TP blinks (outside the IQR)
-    mask_test_set(top_k_indices, autoencoder, x_test, x_train, subject)  # maschera quelle specificate
-    # mask_test_set_reversed(top_k_indices, autoencoder, x_test, subject)  # maschera tutte tranne quelle specificate
+    mask_set(top_k_indices, autoencoder, x_test, x_train, subject, is_train=False)  # Genera .npy e .png
+    mask_set(top_k_indices, autoencoder, x_test, x_train, subject, is_train=True)  # Genera solo i .npy
 
     # x_test = get_x_test_blinks(x_test, y_test)
     # save_test_blink_originals(x_test, subject)
-    # save_test_blink_reconstructions(autoencoder, x_test, subject)"""
+    # save_test_blink_reconstructions(autoencoder, x_test, subject)
 
     print(f"\nFinished. You can transfer to client: {to_client}")
