@@ -159,14 +159,38 @@ cython_debug/
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
 
+# I file .bdf (segnali)
 data_original/
+
+# Numero di blink, istanti temporali ecc
 events/
+
+# Qualche immagine d'esempio su blink, non blink e transizioni
 images/
+
+# Etichette originali
 labels/
+
+# Etichette ridotte
 labels_*/
+
+# Grafici dei segnali EEG
 plots/
+
+# Dati originali
 topomaps/
+
+# Dati ridotti
 topomaps_*/
+
+# Salvataggio dei modelli
 checkpoints/
+
+# Risultati di ciascun modello (es. ricostruzioni, cluster, histogrammi, curve auc)
 results*
+
+# Valori canali originali e interpolati
 signal_values/
+
+# File .npy delle immagini ricostruite dopo il mascheramento
+masked_rec*/
