@@ -619,8 +619,13 @@ def mask_single_test_sample(latent_component_indices, vae, x_test, subject):
 
 
 def mask_set(latent_component_indices, vae, x_test, x_train, subject, is_train=False):
-    # Usa questa funzione per salvare in un unico png tutte le immagini mascherate
-    # con blink per un certo soggetto (se is_train=False)
+    """
+    Questa funzione maschera i dati che vengono passati in input.
+    Se i dati sono di train (is_train=True), allora salvo le ricostruzioni mascherate sotto forma di .npy
+    Questo sarà utile per ricostruire il segnale EEG dalle topomap.
+    Se i dati sono i test (is_train=False), allora salva anche l'immagine .png che mostra
+    ciascuna immagine di test (con blink) mascherata
+    """
 
     # Il mascheramento va fatto considerando la moda delle immagini di train SENZA blink
     x_train_no_blinks = get_x_train_no_blinks(x_train, y_train)
@@ -637,7 +642,7 @@ def mask_set(latent_component_indices, vae, x_test, x_train, subject, is_train=F
 
     fig, axs = plt.subplots(num_rows, num_cols, figsize=(15, 7))
 
-    strategy = "Median"  # or Mode
+    strategy = "Median"
     for i, ax in enumerate(axs.ravel()):
         z_masked = np.copy(z_train_no_blinks)
         for latent_component_idx in latent_component_indices:
@@ -651,10 +656,12 @@ def mask_set(latent_component_indices, vae, x_test, x_train, subject, is_train=F
         os.makedirs(reconstructions_folder, exist_ok=True)
         if is_train:
             # Salvo le ricostruzioni mascherate sotto forma di .npy, non mi interessa anche il png
+            # Ad esempio, masked_red_standard/s01/x_train_15.npy
             file_path = f"{reconstructions_folder}/x_train_{i}.npy"
             np.save(file_path, reconstructed_masked)
         else:
             # Salvo le ricostruzioni mascherate sotto forma di .npy
+            # Ad esempio, masked_red_standard/s01/x_train_15.npy
             file_path = f"{reconstructions_folder}/x_test_{i}.npy"
             np.save(file_path, reconstructed_masked)
 
@@ -664,50 +671,13 @@ def mask_set(latent_component_indices, vae, x_test, x_train, subject, is_train=F
             ax.axis('off')
             # Save the entire figure
             fig.suptitle(f"{subject} test blinks. Mask strategy is: {strategy}", fontsize=26)
+            # Ad esempio, z8_median_s01_standard.png
             file_name = f"z{'_'.join(map(str, latent_component_indices))}_{strategy.lower()}_{subject}_test.png"
             fig.savefig(file_name)
             to_client.append(file_name)
 
     if "masked_rec_standard/" not in to_client:
         to_client.append("masked_rec_standard/")
-
-
-def mask_test_set_reversed(latent_component_indices, vae, x_test, subject):
-    # Usa questa funzione per salvare in un unico png tutte le immagini mascherate
-    # di test con blink per un certo soggetto
-    # REVERSED nel senso che legge gli indici ma maschera TUTTI GLI ALTRI
-
-    # Il mascheramento va fatto considerando la moda delle immagini di test SENZA blink
-    x_train_no_blinks = get_x_train_no_blinks(x_test, y_test)
-    _, _, z = vae.encoder(x_train_no_blinks, training=False)
-
-    # Create a figure with multiple subplots
-    num_rows = 2
-    x_test_blinks = get_x_test_blinks(x_test, y_test)
-    num_cols = len(x_test_blinks) // num_rows
-    fig, axs = plt.subplots(num_rows, num_cols, figsize=(15, 7))
-
-    strategy = "Mode_reversed"  # or Median
-    for i, ax in enumerate(axs.ravel()):
-        z_masked = np.copy(z)
-        for latent_component_idx in range(z.shape[1]):
-            # Maschera tutti gli altri tranne quelli specificati
-            if latent_component_idx not in latent_component_indices:
-                mode_value, _ = mode(z[:, latent_component_idx], keepdims=True)
-                z_masked[:, latent_component_idx] = mode_value
-
-        decoder_output_masked = vae.decoder(z_masked, training=False)
-        reconstructed_masked = decoder_output_masked[i]
-
-        ax.imshow(reconstructed_masked, cmap="gray")
-        ax.set_title(f"x_test[{i}]")
-        ax.axis('off')
-
-    # Save the entire figure
-    fig.suptitle(f"{subject} test blinks. Mask strategy is: {strategy}", fontsize=26)
-    file_name = f"z{'_'.join(map(str, latent_component_indices))}_{strategy.lower()}_{subject}.png"
-    fig.savefig(file_name)
-    to_client.append(file_name)
 
 
 def get_x_train_no_blinks(x_train, y_train):
@@ -745,20 +715,6 @@ if __name__ == '__main__':
         "s09": 1e-06,
         # "s10": 1e-05  # Istogramma non significativo
     }
-
-    """# Indici delle componenti latenti rilevanti per ciascun soggetto
-    relevant_indices = {
-        "s01": [0, 1, 5, 8, 15, 18],
-        "s02": [1, 5, 12, 14, 19, 27],
-        "s03": [0, 1, 5, 19, 24, 26],
-        "s04": [0, 4, 10],
-        # "s05": [],  # Istogramma non significativo
-        "s06": [0, 1, 2, 3],
-        "s07": [0, 1, 2, 3, 4, 5],
-        # "s08": []  # Istogramma non significativo
-        "s09": [3, 8, 11, 13, 16, 19],
-        # "s10": []  # Istogramma non significativo
-    }"""
 
     # Dati ridotti al solo intorno del blink
     subject = "s01"
@@ -845,6 +801,8 @@ if __name__ == '__main__':
 
     # Mask relevant latent components
     # "Relevant" means large IQR (implies more variance of data) and many TP blinks (outside the IQR)
+    # Se is_train=False, salva "{reconstructions_folder}/x_test_{i}.npy" e il file .png delle ricostruzioni mascherate
+    # Altrimenti, salva soltanto i file .npy
     mask_set(top_k_indices, vae, x_test, x_train, subject, is_train=False)  # Genera .npy e .png
     mask_set(top_k_indices, vae, x_test, x_train, subject, is_train=True)  # Genera solo i .npy
 
