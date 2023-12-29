@@ -92,7 +92,7 @@ def get_min_max(x):
 
 
 def get_x_with_blinks(x, y):
-    blink_indices = np.where(y == 1)[0]  # Only on test samples labelled with BLINK (1)
+    blink_indices = np.where(y == 1)[0]  # Only samples labelled with BLINK (1)
     x = x[blink_indices]
     y = y[blink_indices]
     x_only_contains_blinks = all(y) == 1
@@ -101,17 +101,19 @@ def get_x_with_blinks(x, y):
     return x
 
 
-def denormalize(x_normalized, x_test):
-    x_min, x_max = get_min_max(x_test)
+def denormalize(x_normalized, x):
+    x_min, x_max = get_min_max(x)
     x = (x_normalized * (x_max - x_min)) + x_min
     return x
 
-def process_topomaps(x_test_blinks, subject, x_test, topomaps_files, topomaps_folder, my_topomaps_dict):
+def process_topomaps(x_with_blinks, subject, x, topomaps_files, topomaps_folder, my_topomaps_dict, is_train):
+    set_type = "train" if is_train else "test"
     # Per ogni topomap in x_test_blinks
-    for i in range(x_test_blinks.shape[0]):
-        # Mi carico la ricostruzione mascherata della topomap corrente e denormalizzo
-        masked_rec = np.load(f"masked_rec_standard/{subject}/x_test_{i}.npy")
-        masked_rec_denormalized = denormalize(masked_rec, x_test)
+    for i in range(x_with_blinks.shape[0]):
+        # Mi carico la ricostruzione mascherata della SINGOLA topomap corrente e denormalizzo
+        masked_rec = np.load(f"masked_rec_standard/{subject}/x_{set_type}_{i}.npy")
+        masked_rec_denormalized = denormalize(masked_rec, x)
+        masked_rec_denormalized = masked_rec_denormalized.squeeze()  # (40,40,1) => (40,40)
 
         # Per ogni file in topomaps_file (es. s01_trial36.npy, s01_trial17.npy...)
         for file in topomaps_files:
@@ -119,23 +121,25 @@ def process_topomaps(x_test_blinks, subject, x_test, topomaps_files, topomaps_fo
             topomaps_array = np.load(f"{topomaps_folder}/{file}")
             topomaps_array_modified = np.copy(topomaps_array)
 
-            # Per ogni topomap del file corrente es s01_trial36.npy (132,...) quindi ciascuno delle 132 immagini
+            # Per ogni topomap del file corrente es s01_trial36.npy (256,...) quindi ciascuno delle 256 immagini
             for j in range(topomaps_array.shape[0]):
                 # Se la topomap corrente corrisponde ad una topomap in topomaps_array
-                if np.all(x_test_blinks[i] == topomaps_array[j]):
+                if np.all(x_with_blinks[i] == topomaps_array[j]):
                     # Modifica specifici elementi nell'array topomaps_array_modified utilizzando
                     # gli indici specificati nel dict
-                    for elem in my_topomaps_dict[file]["topomaps_array_test"]:
-                        topomaps_array_modified[elem] = masked_rec_denormalized[i]
+                    for elem in my_topomaps_dict[file][f"topomaps_array_{set_type}"]:
+                        topomaps_array_modified[elem] = masked_rec_denormalized
 
-            # Salvo gli array modificati in una cartella
+            # Es. topomaps_reduced_s01_mod
             folder = f"{topomaps_folder}_mod"
             os.makedirs(folder, exist_ok=True)
-            file_name = f"{file}"
+            trial_number = file.split("_")[1].split(".")[0]
+            # Es. s01_trial03_train.npy oppure s01_trial03_test.npy
+            file_name = f"{subject}_{trial_number}_{set_type}.npy"
             np.save(os.path.join(folder, file_name), topomaps_array_modified)
 
 def find_matching_indices_in_topomaps(x_blinks, topomaps_files, topomaps_folder, my_topomaps_dict, is_train=True):
-    blink_type = "train" if is_train else "test"
+    set_type = "train" if is_train else "test"
     for i in range(x_blinks.shape[0]):
         found = False
         for file in topomaps_files:
@@ -154,15 +158,16 @@ def find_matching_indices_in_topomaps(x_blinks, topomaps_files, topomaps_folder,
                         my_topomaps_dict[file]['topomaps_array_test'].append(j)
                         my_topomaps_dict[file]['x_test_blinks'].append(i)
                     found = True
-                    print(f"x_{blink_type}_blinks[{i}] == topomaps_array[{j}] e compare nel file {file}")
+                    print(f"x_{set_type}_blinks[{i}] == topomaps_array[{j}] e compare nel file {file}")
         if not found:
-            raise Exception(f"x_{blink_type}_blinks[{i}] non è stato trovato in alcun file")
+            raise Exception(f"x_{set_type}_blinks[{i}] non è stato trovato in alcun file")
     print("\n")
 
 if __name__ == '__main__':
     print("TensorFlow GPU usage:", tf.config.list_physical_devices('GPU'))
 
-    print("\n>>> QUESTO SCRIPT RICOSTRUISCE IL SEGNALE DALLE TOPOMAPS <<<")
+    print("\n>>> QUESTO SCRIPT RICOSTRUISCE IL SEGNALE DALLE TOPOMAPS GENERANDO LA CARTELLA "
+          "topomaps_reduced_s01_mod/<<<")
 
     # Dati ridotti al solo intorno del blink
     subject = "s01"
@@ -185,11 +190,13 @@ if __name__ == '__main__':
     find_matching_indices_in_topomaps(x_train_blinks, topomaps_files, topomaps_folder, my_topomaps_dict, is_train=True)
     find_matching_indices_in_topomaps(x_test_blinks, topomaps_files, topomaps_folder, my_topomaps_dict, is_train=False)
 
-    process_topomaps(x_test_blinks, subject, x_test, topomaps_files, topomaps_folder, my_topomaps_dict)
+    # Effettua le sostituzioni per generare topomaps_reduced_s01_mod/
+    process_topomaps(x_train_blinks, subject, x_train, topomaps_files, topomaps_folder, my_topomaps_dict, is_train=True)
+    process_topomaps(x_test_blinks, subject, x_test, topomaps_files, topomaps_folder, my_topomaps_dict, is_train=False)
 
     # TODO:
-    #  1. Salvare in masked_rec_standard i dati di train mascherati
-    #  2. Sostituire alle topomaps file quelli ottenuti dal mascheramento (come 172-186)
+    #  1. Salvare in masked_rec_standard i dati di train mascherati (OK)
+    #  2. Sostituire alle topomaps file quelli ottenuti dal mascheramento (come 172-186) (OK)
     #  3. Ripetere signal_topomaps_modified.py per i dati di train
     #  4. Dare in input al modello i dati dentro la cartella topomaps_reduced_s01_mod
     #  5. Passaggio al segnale di questi dati ricostruiti
