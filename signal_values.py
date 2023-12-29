@@ -43,6 +43,12 @@ def labeling(idx_blinks_about, idx_blinks_near):
     return label
 
 
+def check_same_values(my_list, values):
+    for column in range(values.shape[1]):
+        if not np.all(my_list[column] == values[:, column]):
+            raise Exception("list and values do not coincide")
+
+
 if __name__ == '__main__':
     path = 'data_original/'
     l_freq = 0.1
@@ -82,7 +88,7 @@ if __name__ == '__main__':
     signal_values_folder = "signal_values"
     os.makedirs(signal_values_folder, exist_ok=True)
 
-    print(f"\n>>> QUESTO SCRIPT CREA LA CARTELLA {signal_values_folder} <<<")
+    print("\n>>> QUESTO SCRIPT MOSTRA I GRAFICI DEI SEGNALI CHANNEL, INTERPOLATED E RECONSTRUCTED <<<")
 
     for subject in tqdm(subjects, desc="Processing subjects", unit="subject"):
 
@@ -123,11 +129,6 @@ if __name__ == '__main__':
             trial_lowest_peak = np.min(filtered_data)
             trial_highest_peak = np.max(filtered_data)
 
-            save_events('events', subject, trial, events, index, sample_rate,
-                        subject_lowest_peak, subject_highest_peak, magic_number,
-                        trial_lowest_peak, trial_highest_peak,
-                        thresh)
-
             cropped_raw_eeg = crop(raw, index, EEG)
 
             idx_blinks = events[:, 0] - index
@@ -157,7 +158,7 @@ if __name__ == '__main__':
             trial_labels = []
 
             # Solo nell'intorno
-            channel_values = []
+            channel_values_list = []
             for j in idx_blinks:
                 start_index = max(j - int(sec * sample_rate), 0)
                 end_index = min(j + int(sec * sample_rate), dataTrial.shape[1])
@@ -166,13 +167,16 @@ if __name__ == '__main__':
                     interpolatedTopographicMap, CordinateYellowRegion, pos2D = createTopographicMapFromChannelValues(
                         channelValuesForCurrentSample, rawDatasetReReferenced, interpolationMethod="cubic",
                         verbose=False)
-                    channel_values.append(channelValuesForCurrentSample)
+                    channel_values_list.append(channelValuesForCurrentSample)
                     trial_topomaps.append(interpolatedTopographicMap)
                     label = labeling(idx_blinks_about, idx_blinks_near)
                     trial_labels.append(label)
 
             if len(trial_topomaps) == 0:
                 continue
+
+            channel_values = np.array(channel_values_list).transpose()
+            check_same_values(channel_values_list, channel_values)
 
             trial_topomaps = np.array(trial_topomaps)
             trial_labels = np.array(trial_labels)
@@ -183,10 +187,10 @@ if __name__ == '__main__':
                             'P3', 'Pz', 'PO3', 'O1', 'Oz', 'O2', 'PO4', 'P4', 'P8', 'CP6', 'CP2',
                             'C4', 'T8', 'FC6', 'FC2', 'F4', 'F8', 'AF4', 'Fp2', 'Fz', 'Cz']
 
-            my_list = []  # Serve per costruire interpolated_values in maniera più semplice
-            interpolated_values = np.array(np.zeros(shape=(32, 128)))
+            interpolated_values_list = []  # Serve per costruire interpolated_values in maniera più semplice
+            interpolated_values = None
 
-            for i in range(trial_topomaps.shape[0]):
+            for i in range(trial_topomaps.shape[0]):  # Ad esempio 0,...,127 se c'è un solo blink
                 trial_topomaps_i = trial_topomaps[i]
                 coordinates_yellow = np.argwhere(trial_topomaps_i == 0.)
                 channelInfoFromInterpolatedMap = retrieveChannelInfoFromInterpolatedMap(trial_topomaps_i,
@@ -195,56 +199,72 @@ if __name__ == '__main__':
                                                                                         channelNames,
                                                                                         onlyValues=True)
 
-                my_list.append(channelInfoFromInterpolatedMap)
+                interpolated_values_list.append(channelInfoFromInterpolatedMap)
 
-            interpolated_values = np.array(my_list).transpose()
-            channel_values = np.array(channel_values).transpose()
+            interpolated_values = np.array(interpolated_values_list).transpose()
+            check_same_values(interpolated_values_list, interpolated_values)
 
-            for column in range(interpolated_values.shape[1]):
-                if not np.all(my_list[column] == interpolated_values[:, column]):
-                    raise Exception("my_list and interpolated_values do not coincide")
-
-            # Calcolo del tempo totale in base al numero di campioni e la frequenza di campionamento
-            tempo_totale = channel_values.shape[1] / sample_rate
-
-            # Creazione dell'asse x in secondi
-            asse_x = np.linspace(0, tempo_totale, channel_values.shape[1])
-
-            # SINGOLO CANALE
-            # Selezione del canale (esempio: primo canale, indice 0)
-            canale_selezionato = 0
-            # Tracciamento del segnale nel tempo per il canale selezionato dalle due matrici
-            plt.figure(figsize=(10, 6))
-            plt.plot(asse_x, channel_values[canale_selezionato], label='True')
-            plt.plot(asse_x, interpolated_values[canale_selezionato], label='Int')
-            plt.xlabel('Tempo (s)')
-            plt.ylabel('Intensità del segnale')
-            plt.title(f'{subject} trial:{trial}. Segnale nel tempo per il canale {canale_selezionato}')
-            plt.legend()
-            plt.grid(True)
-            # plt.show()
-
-            # Salvo i channel_values e gli interpolated_values
-            # (32,128) => (n_blink,32,128)
-            n_blinks = len(events[:, 0])
-            channel_values = np.expand_dims(channel_values, axis=0)
-            channel_values = np.repeat(channel_values, n_blinks, axis=0)
-            interpolated_values = np.expand_dims(interpolated_values, axis=0)
-            interpolated_values = np.repeat(interpolated_values, n_blinks, axis=0)
-
-            # Saving channel_values
+            # Topomaps modified
             subject_without_extension = subject.rsplit(".", 1)[0]
-            channel_values_folder = f"channel_values_{subject_without_extension}"
-            os.makedirs(os.path.join(signal_values_folder, channel_values_folder), exist_ok=True)
             trial_with_leading_zero = str(trial).zfill(2)
-            file_name = f"{subject_without_extension}_trial{trial_with_leading_zero}.npy"
-            np.save(os.path.join(signal_values_folder, channel_values_folder, file_name), channel_values)
+            folder = f"topomaps_reduced_{subject_without_extension}_mod"
+            topomaps_files_mod = os.listdir(folder)
+            for file in topomaps_files_mod:
 
-            # Saving interpolated_values
-            interpolated_values_folder = f"interpolated_values_{subject_without_extension}"
-            os.makedirs(os.path.join(signal_values_folder, interpolated_values_folder), exist_ok=True)
-            np.save(os.path.join(signal_values_folder, interpolated_values_folder, file_name), interpolated_values)
+                # Affinché il file corrente sia coerente rispetto al soggetto e al trial corrente del ciclo esterno
+                if trial_with_leading_zero not in file:
+                    continue
+
+                reconstructed_values_list = []
+                reconstructed_values = None
+                trial_topomaps_mod = np.load(f"{folder}/{file}")
+                for i in range(trial_topomaps_mod.shape[0]):
+                    trial_topomaps_i_mod = trial_topomaps_mod[i]
+                    coordinates_yellow = np.argwhere(trial_topomaps_i_mod == 0.)
+                    channelInfoFromInterpolatedMap = retrieveChannelInfoFromInterpolatedMap(trial_topomaps_i_mod,
+                                                                                            coordinates_yellow, 40,
+                                                                                            montage_ch_location, 32,
+                                                                                            channelNames,
+                                                                                            onlyValues=True)
+                    reconstructed_values_list.append(channelInfoFromInterpolatedMap)
+
+                reconstructed_values = np.array(reconstructed_values_list).transpose()
+                check_same_values(reconstructed_values_list, reconstructed_values)
+
+                # Calcolo del tempo totale in base al numero di campioni e la frequenza di campionamento
+                # Ad esempio se c'è solo un blink, ovvero channel_values.shape[1] = 128 allora
+                # Tempo totale sarà 128/128 = 1s
+                tempo_totale = channel_values.shape[1] / sample_rate
+                asse_x = np.linspace(0, tempo_totale, channel_values.shape[1])
+
+                # Selezione del canale (esempio: primo canale, indice 0)
+                canale_selezionato = 0
+                plt.figure(figsize=(10, 6))
+                plt.plot(asse_x, channel_values[canale_selezionato], label='Channel')
+                plt.plot(asse_x, interpolated_values[canale_selezionato], label='Interpolated')
+                plt.plot(asse_x, reconstructed_values[canale_selezionato], label='Reconstructed', linestyle='--')
+                plt.xlabel('Tempo (s)')
+                plt.ylabel('Intensità del segnale')
+                plt.title(f'{file}. Segnale nel tempo per il canale {canale_selezionato}')
+                plt.legend()
+                plt.grid(True)
+                plt.show()
+
+                # Salvo channel_values
+                file_name = f"{subject_without_extension}_trial{trial_with_leading_zero}.npy"
+
+                channel_values_folder = f"channel_values_{subject_without_extension}"
+                os.makedirs(os.path.join(signal_values_folder, channel_values_folder), exist_ok=True)
+                np.save(os.path.join(signal_values_folder, channel_values_folder, file_name), channel_values)
+
+                # Salvo interpolated_values
+                interpolated_values_folder = f"interpolated_values_{subject_without_extension}"
+                os.makedirs(os.path.join(signal_values_folder, interpolated_values_folder), exist_ok=True)
+                np.save(os.path.join(signal_values_folder, interpolated_values_folder, file_name), interpolated_values)
+
+                # Salvo reconstructed_values
+                reconstructed_values_folder = f"reconsturcted_values_{subject_without_extension}"
+                os.makedirs(os.path.join(signal_values_folder, reconstructed_values_folder), exist_ok=True)
+                np.save(os.path.join(signal_values_folder, reconstructed_values_folder, file_name), interpolated_values)
 
             # exit(0)
-
-    print(f"Saved data to {signal_values_folder}")

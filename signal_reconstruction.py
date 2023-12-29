@@ -197,6 +197,6 @@ if __name__ == '__main__':
     # TODO:
     #  1. Salvare in masked_rec_standard i dati di train mascherati (OK)
     #  2. Sostituire alle topomaps file quelli ottenuti dal mascheramento (come 172-186) (OK)
-    #  3. Ripetere signal_topomaps_modified.py per i dati di train
+    #  3. Ripetere signal_values.py per i dati di train (OK)
     #  4. Dare in input al modello i dati dentro la cartella topomaps_reduced_s01_mod
     #  5. Passaggio al segnale di questi dati ricostruiti
