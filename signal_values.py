@@ -84,7 +84,7 @@ if __name__ == '__main__':
     subjects = list(magic_numbers.keys())
     montage = mne.channels.make_standard_montage('biosemi32')
 
-    print("\n>>> QUESTO SCRIPT MOSTRA E SALVA I DATI DI CHANNEL, INTEPROLATED E RECONSTRUCTED VALUES NELLA"
+    print("\n>>> QUESTO SCRIPT MOSTRA E SALVA I DATI DI CHANNEL, INTEPROLATED E MASKED RECONSTRUCTED VALUES NELLA"
           " CARTELLA signal_values/")
 
     for subject in tqdm(subjects, desc="Processing subjects", unit="subject"):
@@ -206,7 +206,7 @@ if __name__ == '__main__':
             interpolated_values = np.array(interpolated_values_list).transpose()
             check_same_values(interpolated_values_list, interpolated_values)
 
-            # Topomaps modified
+            # Topomaps modified (masked reconstructed)
             trial_with_leading_zero = str(trial).zfill(2)
             folder = f"topomaps_reduced_{subject_without_extension}_mod"
             topomaps_files_mod = os.listdir(folder)
@@ -216,8 +216,8 @@ if __name__ == '__main__':
                 if trial_with_leading_zero not in file:
                     continue
 
-                reconstructed_values_list = []
-                reconstructed_values = None
+                masked_reconstructed_values_list = []
+                masked_reconstructed_values = None
                 trial_topomaps_mod = np.load(f"{folder}/{file}")
                 for i in range(trial_topomaps_mod.shape[0]):
                     trial_topomaps_i_mod = trial_topomaps_mod[i]
@@ -227,10 +227,10 @@ if __name__ == '__main__':
                                                                                             montage_ch_location, 32,
                                                                                             channelNames,
                                                                                             onlyValues=True)
-                    reconstructed_values_list.append(channelInfoFromInterpolatedMap)
+                    masked_reconstructed_values_list.append(channelInfoFromInterpolatedMap)
 
-                reconstructed_values = np.array(reconstructed_values_list).transpose()
-                check_same_values(reconstructed_values_list, reconstructed_values)
+                masked_reconstructed_values = np.array(masked_reconstructed_values_list).transpose()
+                check_same_values(masked_reconstructed_values_list, masked_reconstructed_values)
 
                 # Calcolo del tempo totale in base al numero di campioni e la frequenza di campionamento
                 # Ad esempio se c'è solo un blink, ovvero channel_values.shape[1] = 128 allora
@@ -244,10 +244,11 @@ if __name__ == '__main__':
                 plt.figure(figsize=(10, 6))
                 plt.plot(asse_x, channel_values[indice_canale], label='Channel')
                 plt.plot(asse_x, interpolated_values[indice_canale], label='Interpolated')
-                plt.plot(asse_x, reconstructed_values[indice_canale], label='Reconstructed', linestyle='--')
-                plt.xlabel('Tempo (s)')
-                plt.ylabel('Intensità del segnale')
-                plt.title(f'{file}. Segnale nel tempo per il canale {canale_selezionato}')
+                plt.plot(asse_x, masked_reconstructed_values[indice_canale], label='Masked reconstructed',
+                         linestyle='--')
+                plt.xlabel('Time (s)')
+                plt.ylabel('Intensity (V)')
+                plt.title(f'{file}. Channel {canale_selezionato}')
                 plt.legend()
                 plt.grid(True)
                 # plt.show()
@@ -272,8 +273,8 @@ if __name__ == '__main__':
                 np.save(os.path.join(signal_values_folder, interpolated_values_folder, file_name), interpolated_values)
 
                 # Salvo reconstructed_values
-                reconstructed_values_folder = f"reconsturcted_values_{subject_without_extension}"
+                reconstructed_values_folder = f"masked_reconstructed_values_{subject_without_extension}"
                 os.makedirs(os.path.join(signal_values_folder, reconstructed_values_folder), exist_ok=True)
-                np.save(os.path.join(signal_values_folder, reconstructed_values_folder, file_name), interpolated_values)
+                np.save(os.path.join(signal_values_folder, reconstructed_values_folder, file_name), masked_reconstructed_values)
 
             # exit(0)

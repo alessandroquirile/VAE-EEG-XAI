@@ -600,7 +600,6 @@ def mask_set(latent_component_indices, autoencoder, x_test, x_train, subject, is
             ax.imshow(reconstructed_masked, cmap="gray")
             ax.set_title(f"x_test[{i}]")
             ax.axis('off')
-            # Save the entire figure
             fig.suptitle(f"{subject} test blinks. Mask strategy is: {strategy}", fontsize=26)
             # Ad esempio, z8_median_s01_standard.png
             file_name = f"z{'_'.join(map(str, latent_component_indices))}_{strategy.lower()}_{subject}_test_standard.png"
