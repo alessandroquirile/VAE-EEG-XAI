@@ -117,7 +117,7 @@ def process_topomaps(x_with_blinks, subject, x, topomaps_files, topomaps_folder,
 
         # Per ogni file in topomaps_file (es. s01_trial36.npy, s01_trial17.npy...)
         for file in topomaps_files:
-            # Mi carico il file .npy associato e ne faccio una copia per sicurezza
+            # Mi carico l'array associato e ne faccio una copia per sicurezza
             topomaps_array = np.load(f"{topomaps_folder}/{file}")
             topomaps_array_modified = np.copy(topomaps_array)
 
@@ -135,7 +135,7 @@ def process_topomaps(x_with_blinks, subject, x, topomaps_files, topomaps_folder,
             os.makedirs(folder, exist_ok=True)
             trial_number = file.split("_")[1].split(".")[0]
             # Es. s01_trial03_train.npy oppure s01_trial03_test.npy
-            file_name = f"{subject}_{trial_number}_{set_type}.npy"
+            file_name = f"{subject}_{trial_number}.npy"
             np.save(os.path.join(folder, file_name), topomaps_array_modified)
 
 def find_matching_indices_in_topomaps(x_blinks, topomaps_files, topomaps_folder, my_topomaps_dict, is_train=True):

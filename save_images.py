@@ -21,3 +21,4 @@ if __name__ == '__main__':
         output_file = os.path.join(output_folder, f"{file_name_without_extension}_topomap{i + 1}.png")
         plt.savefig(output_file)
         plt.clf()
+

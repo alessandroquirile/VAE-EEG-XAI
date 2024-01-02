@@ -84,13 +84,15 @@ if __name__ == '__main__':
     subjects = list(magic_numbers.keys())
     montage = mne.channels.make_standard_montage('biosemi32')
 
-    # Creazione della cartella values
-    signal_values_folder = "signal_values"
-    os.makedirs(signal_values_folder, exist_ok=True)
-
-    print("\n>>> QUESTO SCRIPT MOSTRA I GRAFICI DEI SEGNALI CHANNEL, INTERPOLATED E RECONSTRUCTED <<<")
+    print("\n>>> QUESTO SCRIPT MOSTRA E SALVA I DATI DI CHANNEL, INTEPROLATED E RECONSTRUCTED VALUES NELLA"
+          " CARTELLA signal_values/")
 
     for subject in tqdm(subjects, desc="Processing subjects", unit="subject"):
+
+        # Creazione della cartella values
+        subject_without_extension = subject.rsplit(".", 1)[0]
+        signal_values_folder = f"signal_values/{subject_without_extension}"
+        os.makedirs(signal_values_folder, exist_ok=True)
 
         pos2D = []
 
@@ -205,7 +207,6 @@ if __name__ == '__main__':
             check_same_values(interpolated_values_list, interpolated_values)
 
             # Topomaps modified
-            subject_without_extension = subject.rsplit(".", 1)[0]
             trial_with_leading_zero = str(trial).zfill(2)
             folder = f"topomaps_reduced_{subject_without_extension}_mod"
             topomaps_files_mod = os.listdir(folder)
@@ -238,17 +239,25 @@ if __name__ == '__main__':
                 asse_x = np.linspace(0, tempo_totale, channel_values.shape[1])
 
                 # Selezione del canale (esempio: primo canale, indice 0)
-                canale_selezionato = 0
+                indice_canale = 0
+                canale_selezionato = channelNames[indice_canale]
                 plt.figure(figsize=(10, 6))
-                plt.plot(asse_x, channel_values[canale_selezionato], label='Channel')
-                plt.plot(asse_x, interpolated_values[canale_selezionato], label='Interpolated')
-                plt.plot(asse_x, reconstructed_values[canale_selezionato], label='Reconstructed', linestyle='--')
+                plt.plot(asse_x, channel_values[indice_canale], label='Channel')
+                plt.plot(asse_x, interpolated_values[indice_canale], label='Interpolated')
+                plt.plot(asse_x, reconstructed_values[indice_canale], label='Reconstructed', linestyle='--')
                 plt.xlabel('Tempo (s)')
                 plt.ylabel('Intensità del segnale')
                 plt.title(f'{file}. Segnale nel tempo per il canale {canale_selezionato}')
                 plt.legend()
                 plt.grid(True)
-                plt.show()
+                # plt.show()
+
+                # Salvo le immagini dei tre segnali
+                images_folder = os.path.join(signal_values_folder, f"signal_images_{subject_without_extension}")
+                os.makedirs(images_folder, exist_ok=True)
+                image_file_name = f"{file}_plot.png"
+                image_path = os.path.join(images_folder, image_file_name)
+                plt.savefig(image_path)
 
                 # Salvo channel_values
                 file_name = f"{subject_without_extension}_trial{trial_with_leading_zero}.npy"
