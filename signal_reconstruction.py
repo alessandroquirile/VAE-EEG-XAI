@@ -111,6 +111,8 @@ def process_topomaps(x_with_blinks, subject, x, topomaps_files, topomaps_folder,
     # Per ogni topomap in x_test_blinks
     for i in range(x_with_blinks.shape[0]):
         # Mi carico la ricostruzione mascherata della SINGOLA topomap corrente e denormalizzo
+        # ATTENZIONE: AE = _standard; VAE = rimuovere _standard
+        # I dati e la cartella sono creati nel file analysis o analysis_standard
         masked_rec = np.load(f"masked_rec_standard/{subject}/x_{set_type}_{i}.npy")
         masked_rec_denormalized = denormalize(masked_rec, x)
         masked_rec_denormalized = masked_rec_denormalized.squeeze()  # (40,40,1) => (40,40)
@@ -158,7 +160,7 @@ def find_matching_indices_in_topomaps(x_blinks, topomaps_files, topomaps_folder,
                         my_topomaps_dict[file]['topomaps_array_test'].append(j)
                         my_topomaps_dict[file]['x_test_blinks'].append(i)
                     found = True
-                    print(f"x_{set_type}_blinks[{i}] == topomaps_array[{j}] e compare nel file {file}")
+                    # print(f"x_{set_type}_blinks[{i}] == topomaps_array[{j}] e compare nel file {file}")
         if not found:
             raise Exception(f"x_{set_type}_blinks[{i}] non è stato trovato in alcun file")
     print("\n")
@@ -166,13 +168,13 @@ def find_matching_indices_in_topomaps(x_blinks, topomaps_files, topomaps_folder,
 if __name__ == '__main__':
     print("TensorFlow GPU usage:", tf.config.list_physical_devices('GPU'))
 
-    print("\n>>> QUESTO SCRIPT RICOSTRUISCE IL SEGNALE DALLE TOPOMAPS GENERANDO LA CARTELLA "
-          "topomaps_reduced_s01_mod/<<<")
-
     # Dati ridotti al solo intorno del blink
     subject = "s01"
     topomaps_folder = f"topomaps_reduced_{subject}"
     labels_folder = f"labels_reduced_{subject}"
+
+    print("\n>>> QUESTO SCRIPT RICOSTRUISCE IL SEGNALE DALLE TOPOMAPS GENERANDO LA CARTELLA "
+          f"topomaps_reduced_{subject}_mod/ <<<")
 
     # Load data
     x_train, x_test, y_train, y_test = load_data(topomaps_folder, labels_folder,

@@ -301,110 +301,6 @@ def histogram_25_75(vae, x_train, y_train, latent_dim, subject):
     return quantile_matrix, z_mean, z_mean_blink, z_mean_no_blink, z_mean_trans
 
 
-def histogram_cebicev(vae, x_test, y_test, latent_dim, subject):
-    # La disuguaglianza triangolare di Chebyshev è un principio
-    # che fornisce un limite superiore per la probabilità che una variabile casuale si discosti da un certo numero di
-    # deviazioni standard rispetto alla sua media. In questo contesto specifico, la disuguaglianza triangolare di
-    # Chebyshev viene utilizzata per stabilire i limiti superiore e inferiore per ciascuna componente latente in modo
-    # da identificare regioni di interesse.
-    #
-    # La disuguaglianza triangolare di Chebyshev viene utilizzata per definire i
-    # limiti (threshold_low e threshold_high) al di fuori dei quali i valori della componente latente sono
-    # considerati "outliers" o "anomali". Questi limiti vengono utilizzati successivamente per valutare la presenza
-    # di punti dati appartenenti a diverse classi (blink, no blink, transizione) nelle regioni specificate.
-    #
-    # In sostanza, questa approccio permette di individuare regioni di interesse nelle distribuzioni delle componenti
-    # latenti in base a un criterio statistico che tiene conto della variabilità dei dati. Questo può essere utile
-    # per identificare pattern o comportamenti anomali nei dati latenti, ad esempio, nel contesto di un modello di
-    # variational autoencoder (VAE) utilizzato per la classificazione dei blink.
-    z_mean, _, _ = vae.encoder(x_test)
-
-    no_blink = []
-    blink = []
-    trans = []
-    for i in range(0, len(y_test)):
-        if y_test[i] == 0:
-            no_blink.append(x_test[i])
-        if y_test[i] == 1:
-            blink.append(x_test[i])
-        if y_test[i] == 2:
-            trans.append(x_test[i])
-    blink = np.array(blink)
-    no_blink = np.array(no_blink)
-    trans = np.array(trans)
-
-    print('\nIl numero di blink è:', len(blink))
-    print('Il numero di non blink è:', len(no_blink))
-    print('Il numero di transizioni è:', len(trans))
-
-    z_mean_blink, _, _ = vae.encoder(blink)
-    z_mean_no_blink, _, _ = vae.encoder(no_blink)
-    z_mean_trans, _, _ = vae.encoder(trans)
-
-    # Use Cebicev's inequality thresholds instead of interquartile range
-    cebicev_factor = 2.5  # Adjust this factor based on your requirements
-
-    threshold_low = np.mean(z_mean, axis=0) - cebicev_factor * np.std(z_mean, axis=0)
-    threshold_high = np.mean(z_mean, axis=0) + cebicev_factor * np.std(z_mean, axis=0)
-
-    num_rows = 7
-    num_cols = 4
-    fig, axes = plt.subplots(num_rows, num_cols, figsize=(15, 20))
-
-    for j in range(0, z_mean_blink.shape[1]):  # 0, 1,...,latent_dim-1
-        true_blink = 0  # TP
-        negative_blink = 0  # FN
-        negative_noblink = 0  # FP
-        true_noblink = 0  # TN
-        for i in range(0, z_mean_blink.shape[0]):  # 0, 1, ..., n_blinks-1
-            if z_mean_blink[i, j] <= threshold_low[j] or z_mean_blink[i, j] >= threshold_high[j]:  # Out
-                true_blink = true_blink + 1
-            else:
-                negative_blink = negative_blink + 1
-        for i in range(0, z_mean_no_blink.shape[0]):  # 0, 1, ..., n_non_blinks-1
-            if threshold_low[j] < z_mean_no_blink[i, j] < threshold_high[j]:
-                true_noblink = true_noblink + 1
-            else:
-                negative_noblink = negative_noblink + 1
-
-        # Disegno
-        row_index = j // num_cols
-        col_index = j % num_cols
-        ax = axes[row_index, col_index]
-        ax.set_title(f'histogram latent component {j + 1}')
-        ax.hist(z_mean_blink[:, j], bins=100, color='green', alpha=0.6,
-                label=f'Blink. TP:{true_blink}, FN:{negative_blink}')
-        ax.hist(z_mean_no_blink[:, j], bins=100, color='violet', alpha=0.6,
-                label=f'No Blink. TN:{true_noblink}, FP:{negative_noblink}')
-        ax.hist(z_mean_trans[:, j], bins=100, color='yellow', alpha=0.6, label='Transition')
-
-        ax.axvline(threshold_low[j], color='black', linestyle='-', label='Cebicev Low')
-        ax.axvline(threshold_high[j], color='blue', linestyle='-', label='Cebicev High')
-        ax.legend()
-
-    plt.tight_layout()
-
-    histogram_file_name = f'histogram_cebicev_{subject}.png'
-    fig.savefig(histogram_file_name)
-    to_client.append(histogram_file_name)
-
-    n_intervalli = 9
-    M = np.zeros((latent_dim, n_intervalli * 2))
-    start = 0.05
-    end = 0.95
-    step = 0.05
-    Q = np.arange(start, end + step, step)
-    i = 0
-    for q in Q:
-        # print("q",q)
-        if q != 0.5:
-            # print("i",i)
-            M[:, i] = np.quantile(z_mean, q, axis=0)
-            i = i + 1
-    quantile_matrix = M
-    return quantile_matrix, z_mean, z_mean_blink, z_mean_no_blink, z_mean_trans
-
-
 def auc_roc(quantile_matrix, z_mean_blink, z_mean_no_blink, subject):
     num_rows = 7
     num_cols = 4
@@ -656,12 +552,12 @@ def mask_set(latent_component_indices, vae, x_test, x_train, subject, is_train=F
         os.makedirs(reconstructions_folder, exist_ok=True)
         if is_train:
             # Salvo le ricostruzioni mascherate sotto forma di .npy, non mi interessa anche il png
-            # Ad esempio, masked_red_standard/s01/x_train_15.npy
+            # Ad esempio, masked_rec/s01/x_train_15.npy
             file_path = f"{reconstructions_folder}/x_train_{i}.npy"
             np.save(file_path, reconstructed_masked)
         else:
             # Salvo le ricostruzioni mascherate sotto forma di .npy
-            # Ad esempio, masked_red_standard/s01/x_train_15.npy
+            # Ad esempio, masked_rec/s01/x_train_15.npy
             file_path = f"{reconstructions_folder}/x_test_{i}.npy"
             np.save(file_path, reconstructed_masked)
 
@@ -671,13 +567,13 @@ def mask_set(latent_component_indices, vae, x_test, x_train, subject, is_train=F
             ax.axis('off')
             # Save the entire figure
             fig.suptitle(f"{subject} test blinks. Mask strategy is: {strategy}", fontsize=26)
-            # Ad esempio, z8_median_s01_standard.png
+            # Ad esempio, z8_median_s01.png
             file_name = f"z{'_'.join(map(str, latent_component_indices))}_{strategy.lower()}_{subject}_test.png"
             fig.savefig(file_name)
             to_client.append(file_name)
 
-    if "masked_rec_standard/" not in to_client:
-        to_client.append("masked_rec_standard/")
+    if "masked_rec/" not in to_client:
+        to_client.append("masked_rec/")
 
 
 def get_x_train_no_blinks(x_train, y_train):
