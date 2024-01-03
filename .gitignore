@@ -194,3 +194,6 @@ signal_values/
 
 # File .npy delle immagini ricostruite dopo il mascheramento
 masked_rec*/
+
+# File .npy delle immagini ricostruite senza il mascheramento
+rec_*/

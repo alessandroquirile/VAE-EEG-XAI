@@ -120,7 +120,7 @@ def process_topomaps(x_with_blinks, subject, x, topomaps_files, topomaps_folder,
                     for elem in my_topomaps_dict[file][f"topomaps_array_{set_type}"]:
                         topomaps_array_modified[elem] = masked_rec_denormalized
 
-            # Es. topomaps_reduced_s01_mod
+            # Es. topomaps_reduced_s01_mod (mod nel senso di ricostruzioni mascherate)
             folder = f"{topomaps_folder}_mod"
             os.makedirs(folder, exist_ok=True)
             trial_number = file.split("_")[1].split(".")[0]
@@ -162,7 +162,7 @@ if __name__ == '__main__':
     labels_folder = f"labels_reduced_{subject}"
 
     print("\n>>> QUESTO SCRIPT RICOSTRUISCE IL SEGNALE DALLE TOPOMAPS GENERANDO LA CARTELLA "
-          f"topomaps_reduced_{subject}_mod/ <<<")
+          f"topomaps_reduced_{subject}_mod/ (oppure _rec/) <<<")
 
     # Load data
     x_train, x_test, y_train, y_test = load_data(topomaps_folder, labels_folder,
@@ -180,13 +180,7 @@ if __name__ == '__main__':
     find_matching_indices_in_topomaps(x_train_blinks, topomaps_files, topomaps_folder, my_topomaps_dict, is_train=True)
     find_matching_indices_in_topomaps(x_test_blinks, topomaps_files, topomaps_folder, my_topomaps_dict, is_train=False)
 
-    # Effettua le sostituzioni per generare topomaps_reduced_s01_mod/
+    # Effettua le sostituzioni per generare topomaps_reduced_s01_mod/ (oppure _rec/)
     process_topomaps(x_train_blinks, subject, x_train, topomaps_files, topomaps_folder, my_topomaps_dict, is_train=True)
     process_topomaps(x_test_blinks, subject, x_test, topomaps_files, topomaps_folder, my_topomaps_dict, is_train=False)
 
-    # TODO:
-    #  1. Salvare in masked_rec_standard i dati di train mascherati (OK)
-    #  2. Sostituire alle topomaps file quelli ottenuti dal mascheramento (come 172-186) (OK)
-    #  3. Ripetere signal_values.py per i dati di train (OK)
-    #  4. Dare in input al modello i dati dentro la cartella topomaps_reduced_s01_mod
-    #  5. Passaggio al segnale di questi dati ricostruiti

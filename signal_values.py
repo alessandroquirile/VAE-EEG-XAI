@@ -84,8 +84,8 @@ if __name__ == '__main__':
     subjects = list(magic_numbers.keys())
     montage = mne.channels.make_standard_montage('biosemi32')
 
-    print("\n>>> QUESTO SCRIPT MOSTRA E SALVA I DATI DI CHANNEL, INTEPROLATED E MASKED RECONSTRUCTED VALUES NELLA"
-          " CARTELLA signal_values/")
+    print("\n>>> QUESTO SCRIPT MOSTRA E SALVA I DATI DI CHANNEL, INTERPOLATED, MASKED RECONSTRUCTED VALUES"
+          " E RECONSTRUCTED VALUES NELLA CARTELLA signal_values/ <<<")
 
     for subject in tqdm(subjects, desc="Processing subjects", unit="subject"):
 
@@ -160,6 +160,7 @@ if __name__ == '__main__':
             trial_labels = []
 
             # Solo nell'intorno
+            # INIZIO CHANNEL VALUES
             channel_values_list = []
             for j in idx_blinks:
                 start_index = max(j - int(sec * sample_rate), 0)
@@ -180,6 +181,8 @@ if __name__ == '__main__':
             channel_values = np.array(channel_values_list).transpose()
             check_same_values(channel_values_list, channel_values)
 
+            # FINE CHANNEL VALUES
+
             trial_topomaps = np.array(trial_topomaps)
             trial_labels = np.array(trial_labels)
 
@@ -189,6 +192,7 @@ if __name__ == '__main__':
                             'P3', 'Pz', 'PO3', 'O1', 'Oz', 'O2', 'PO4', 'P4', 'P8', 'CP6', 'CP2',
                             'C4', 'T8', 'FC6', 'FC2', 'F4', 'F8', 'AF4', 'Fp2', 'Fz', 'Cz']
 
+            # INIZIO INTERPOLATED
             interpolated_values_list = []  # Serve per costruire interpolated_values in maniera più semplice
             interpolated_values = None
 
@@ -206,7 +210,11 @@ if __name__ == '__main__':
             interpolated_values = np.array(interpolated_values_list).transpose()
             check_same_values(interpolated_values_list, interpolated_values)
 
+            # FINE INTERPOLATED
+
             # Topomaps modified (masked reconstructed)
+            # INIZIO MASKED RECONSTRUCTED
+            masked_reconstructed_values = None
             trial_with_leading_zero = str(trial).zfill(2)
             folder = f"topomaps_reduced_{subject_without_extension}_mod"
             topomaps_files_mod = os.listdir(folder)
@@ -217,7 +225,6 @@ if __name__ == '__main__':
                     continue
 
                 masked_reconstructed_values_list = []
-                masked_reconstructed_values = None
                 trial_topomaps_mod = np.load(f"{folder}/{file}")
                 for i in range(trial_topomaps_mod.shape[0]):
                     trial_topomaps_i_mod = trial_topomaps_mod[i]
@@ -232,25 +239,67 @@ if __name__ == '__main__':
                 masked_reconstructed_values = np.array(masked_reconstructed_values_list).transpose()
                 check_same_values(masked_reconstructed_values_list, masked_reconstructed_values)
 
+                # FINE MASKED RECONSTRUCTED
+
+            # INIZIO RECONSTRUCTED (no mask)
+            reconstructed_values = None
+            folder = f"topomaps_reduced_{subject_without_extension}_rec"
+            topomaps_files_mod = os.listdir(folder)
+            for file in topomaps_files_mod:
+
+                # Affinché il file corrente sia coerente rispetto al soggetto e al trial corrente del ciclo esterno
+                if trial_with_leading_zero not in file:
+                    continue
+
+                reconstructed_values_list = []
+                trial_topomaps_rec = np.load(f"{folder}/{file}")
+                for i in range(trial_topomaps_rec.shape[0]):
+                    trial_topomaps_i_rec = trial_topomaps_rec[i]
+                    coordinates_yellow = np.argwhere(trial_topomaps_i_rec == 0.)
+                    channelInfoFromInterpolatedMap = retrieveChannelInfoFromInterpolatedMap(trial_topomaps_i_rec,
+                                                                                            coordinates_yellow, 40,
+                                                                                            montage_ch_location, 32,
+                                                                                            channelNames,
+                                                                                            onlyValues=True)
+                    reconstructed_values_list.append(channelInfoFromInterpolatedMap)
+
+                reconstructed_values = np.array(reconstructed_values_list).transpose()
+                check_same_values(reconstructed_values_list, reconstructed_values)
+
+                # FINE RECONSTRUCTED (no mask)
+
                 # Calcolo del tempo totale in base al numero di campioni e la frequenza di campionamento
                 # Ad esempio se c'è solo un blink, ovvero channel_values.shape[1] = 128 allora
                 # Tempo totale sarà 128/128 = 1s
                 tempo_totale = channel_values.shape[1] / sample_rate
                 asse_x = np.linspace(0, tempo_totale, channel_values.shape[1])
 
+                # TODO: mettere la linea verticale sul blink e separare se ci stanno più blink
+                #  Anche con VAE
+                #  Inviare immagini a sabatina
+                #  Provare a lasciare solo reconstructed
                 # Selezione del canale (esempio: primo canale, indice 0)
                 indice_canale = 0
                 canale_selezionato = channelNames[indice_canale]
                 plt.figure(figsize=(10, 6))
                 plt.plot(asse_x, channel_values[indice_canale], label='Channel')
                 plt.plot(asse_x, interpolated_values[indice_canale], label='Interpolated')
-                plt.plot(asse_x, masked_reconstructed_values[indice_canale], label='Masked reconstructed',
-                         linestyle='--')
+                # plt.plot(asse_x, masked_reconstructed_values[indice_canale], label='Masked reconstructed',
+                #          linestyle='--')
+                # Reconstructed sono gli output del modello dandogli in input le topomap in sequenza
+                # "modificate"
+                plt.plot(asse_x, reconstructed_values[indice_canale], label='Reconstructed',
+                         linestyle='dotted')
                 plt.xlabel('Time (s)')
                 plt.ylabel('Intensity (V)')
                 plt.title(f'{file}. Channel {canale_selezionato}')
                 plt.legend()
                 plt.grid(True)
+                # Linee verticali sui blink
+                num_positions = int(tempo_totale)
+                x_positions = [i + 0.5 for i in range(num_positions)]
+                for x in x_positions:
+                    plt.axvline(x=x, color='red', linestyle='--')  # Linee verticali per ciascuna posizione x
                 # plt.show()
 
                 # Salvo le immagini dei tre segnali
@@ -272,9 +321,16 @@ if __name__ == '__main__':
                 os.makedirs(os.path.join(signal_values_folder, interpolated_values_folder), exist_ok=True)
                 np.save(os.path.join(signal_values_folder, interpolated_values_folder, file_name), interpolated_values)
 
-                # Salvo reconstructed_values
-                reconstructed_values_folder = f"masked_reconstructed_values_{subject_without_extension}"
-                os.makedirs(os.path.join(signal_values_folder, reconstructed_values_folder), exist_ok=True)
-                np.save(os.path.join(signal_values_folder, reconstructed_values_folder, file_name), masked_reconstructed_values)
+                # Salvo masked_reconstructed_values
+                masked_reconstructed_folder = f"masked_reconstructed_values_{subject_without_extension}"
+                os.makedirs(os.path.join(signal_values_folder, masked_reconstructed_folder), exist_ok=True)
+                np.save(os.path.join(signal_values_folder, masked_reconstructed_folder, file_name),
+                        masked_reconstructed_values)
+
+                # Salvo reconstructed_values (senza mascheramento)
+                reconstructed_folder = f"reconstructed_values_{subject_without_extension}"
+                os.makedirs(os.path.join(signal_values_folder, reconstructed_folder), exist_ok=True)
+                np.save(os.path.join(signal_values_folder, reconstructed_folder, file_name),
+                        reconstructed_values)
 
             # exit(0)
