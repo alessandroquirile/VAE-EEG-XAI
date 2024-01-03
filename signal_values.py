@@ -268,19 +268,59 @@ if __name__ == '__main__':
 
                 # FINE RECONSTRUCTED (no mask)
 
-                # Calcolo del tempo totale in base al numero di campioni e la frequenza di campionamento
-                # Ad esempio se c'è solo un blink, ovvero channel_values.shape[1] = 128 allora
-                # Tempo totale sarà 128/128 = 1s
-                tempo_totale = channel_values.shape[1] / sample_rate
-                asse_x = np.linspace(0, tempo_totale, channel_values.shape[1])
-
-                # TODO: mettere la linea verticale sul blink e separare se ci stanno più blink
+                # TODO:
                 #  Anche con VAE
                 #  Inviare immagini a sabatina
                 #  Provare a lasciare solo reconstructed
                 # Selezione del canale (esempio: primo canale, indice 0)
                 indice_canale = 0
                 canale_selezionato = channelNames[indice_canale]
+
+                # BLINK SEPARATI
+                block_size = sample_rate
+                num_samples = channel_values.shape[1]
+                for i in range(0, channel_values.shape[1], sample_rate):
+                    end_index = min(i + block_size, num_samples)
+                    plt.figure(figsize=(10, 6))
+                    tempo_totale = 1
+                    asse_x = np.linspace(0, tempo_totale,  sample_rate)
+                    if channel_values[indice_canale, i:end_index].shape[0] != sample_rate:
+                        continue
+                    plt.plot(asse_x, channel_values[indice_canale, i:end_index], label='Channel')
+                    plt.plot(asse_x, interpolated_values[indice_canale, i:end_index], label='Interpolated')
+                    # plt.plot(asse_x, masked_reconstructed_values[indice_canale], label='Masked reconstructed',
+                    #          linestyle='--')
+                    # Reconstructed sono gli output del modello dandogli in input le topomap in sequenza
+                    # "modificate"
+                    plt.plot(asse_x, reconstructed_values[indice_canale, i:end_index], label='Reconstructed', linestyle='dotted')
+                    plt.xlabel('Time (s)')
+                    plt.ylabel('Intensity (V)')
+                    plt.title(f'{file}. Channel {canale_selezionato}')
+                    plt.legend()
+                    plt.grid(True)
+                    plt.axvline(x=0.5, color='red', linestyle='--')
+                    # plt.show()
+
+                    # Salvo le immagini dei tre segnali
+                    images_folder = os.path.join(signal_values_folder, f"signal_images_{subject_without_extension}")
+                    os.makedirs(images_folder, exist_ok=True)
+                    image_file_name = f"{file}_plot.png"
+                    image_path = os.path.join(images_folder, image_file_name)
+                    counter = 1
+                    while os.path.exists(image_path):
+                        # Se il file esiste già, incrementa il contatore e genera un nuovo nome file
+                        image_file_name = f"{file}_plot_{counter}.png"
+                        image_path = os.path.join(images_folder, image_file_name)
+                        counter += 1
+                    plt.savefig(image_path)
+                    plt.close()
+
+                # TUTTI I BLINK INSIEME
+                # Calcolo del tempo totale in base al numero di campioni e la frequenza di campionamento
+                # Ad esempio se c'è solo un blink, ovvero channel_values.shape[1] = 128 allora
+                # Tempo totale sarà 128/128 = 1s
+                """tempo_totale = channel_values.shape[1] / sample_rate
+                asse_x = np.linspace(0, tempo_totale, channel_values.shape[1])
                 plt.figure(figsize=(10, 6))
                 plt.plot(asse_x, channel_values[indice_canale], label='Channel')
                 plt.plot(asse_x, interpolated_values[indice_canale], label='Interpolated')
@@ -298,6 +338,9 @@ if __name__ == '__main__':
                 # Linee verticali sui blink
                 num_positions = int(tempo_totale)
                 x_positions = [i + 0.5 for i in range(num_positions)]
+                # Correzione manuale
+                if file == "s01_trial35.npy":
+                    x_positions = [0.25, 1.25, 2.25, 3.25]
                 for x in x_positions:
                     plt.axvline(x=x, color='red', linestyle='--')  # Linee verticali per ciascuna posizione x
                 # plt.show()
@@ -308,6 +351,7 @@ if __name__ == '__main__':
                 image_file_name = f"{file}_plot.png"
                 image_path = os.path.join(images_folder, image_file_name)
                 plt.savefig(image_path)
+                plt.close()"""
 
                 # Salvo channel_values
                 file_name = f"{subject_without_extension}_trial{trial_with_leading_zero}.npy"
