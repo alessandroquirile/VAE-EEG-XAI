@@ -268,10 +268,6 @@ if __name__ == '__main__':
 
                 # FINE RECONSTRUCTED (no mask)
 
-                # TODO:
-                #  Anche con VAE
-                #  Inviare immagini a sabatina
-                #  Provare a lasciare solo reconstructed
                 # Selezione del canale (esempio: primo canale, indice 0)
                 indice_canale = 0
                 canale_selezionato = channelNames[indice_canale]
@@ -299,7 +295,7 @@ if __name__ == '__main__':
                     plt.legend()
                     plt.grid(True)
                     plt.axvline(x=0.5, color='red', linestyle='--')
-                    # plt.show()
+                    plt.show()
 
                     # Salvo le immagini dei tre segnali
                     images_folder = os.path.join(signal_values_folder, f"signal_images_{subject_without_extension}")
