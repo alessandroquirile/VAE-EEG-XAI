@@ -448,6 +448,7 @@ def get_original_and_reconstructed(vae, x_test, image_index):
 
 def save_test_blink_originals(x_test, subject):
     # Usa questa funzione per salvare in un unico png tutte le immagini di test con blink per un certo soggetto
+    x_test = get_x_with_blinks(x_test, y_test)
     num_rows = 2
     num_cols = len(x_test) // num_rows
     fig, axs = plt.subplots(num_rows, num_cols, figsize=(15, 7))
@@ -462,26 +463,57 @@ def save_test_blink_originals(x_test, subject):
     to_client.append(file_name)
 
 
-def save_test_blink_reconstructions(autoencoder, x_test, subject):
+def save_test_blink_reconstructions(autoencoder, x_test, x_train, subject, is_train):
     # Usa questa funzione per salvare in un unico png tutte le ricostruzioni di
     # immagini di test con blink per un certo soggetto
     reconstructions = []
-    for i in range(len(x_test)):
-        original = x_test[i]
-        reconstructed = autoencoder.predict(np.expand_dims(original, axis=0), verbose=0)  # (1, 40, 40, 1)
-        reconstructions.append(reconstructed[0])
-    num_rows = 2
-    num_cols = len(x_test) // num_rows
-    fig, axs = plt.subplots(num_rows, num_cols, figsize=(15, 7))
-    for i, ax in enumerate(axs.ravel()):
-        ax.imshow(reconstructions[i], cmap="gray")
-        ax.set_title(f"x_test[{i}]")
-        ax.axis('off')
-    # Save the entire figure
-    fig.suptitle(f"{subject} test blinks reconstructed", fontsize=26)
-    file_name = f"test_blinks_reconstructed_{subject}_standard.png"
-    fig.savefig(file_name)
-    to_client.append(file_name)
+    rec_standard_folder = f"rec_standard/{subject}"
+
+    if is_train:
+        x_train = get_x_with_blinks(x_train, y_train)
+        for i in range(len(x_train)):
+            original = x_train[i]
+            reconstructed = autoencoder.predict(np.expand_dims(original, axis=0), verbose=0)  # (1, 40, 40, 1)
+            reconstructions.append(reconstructed[0])
+        num_rows = 2
+        num_cols = len(x_train) // num_rows
+        fig, axs = plt.subplots(num_rows, num_cols, figsize=(15, 7))
+        for i, ax in enumerate(axs.ravel()):
+            ax.imshow(reconstructions[i], cmap="gray")
+            ax.set_title(f"x_train[{i}]")
+            ax.axis('off')
+
+            os.makedirs(rec_standard_folder, exist_ok=True)
+            # Ad esempio, rec_standard/s01/x_train_15.npy
+            file_path = f"{rec_standard_folder}/x_train_{i}.npy"
+            np.save(file_path, reconstructions[i])
+    else:
+        x_test = get_x_with_blinks(x_test, y_test)
+        for i in range(len(x_test)):
+            original = x_test[i]
+            reconstructed = autoencoder.predict(np.expand_dims(original, axis=0), verbose=0)  # (1, 40, 40, 1)
+            reconstructions.append(reconstructed[0])
+        num_rows = 2
+        num_cols = len(x_test) // num_rows
+        fig, axs = plt.subplots(num_rows, num_cols, figsize=(15, 7))
+        for i, ax in enumerate(axs.ravel()):
+            ax.imshow(reconstructions[i], cmap="gray")
+            ax.set_title(f"x_test[{i}]")
+            ax.axis('off')
+
+            os.makedirs(rec_standard_folder, exist_ok=True)
+            # Ad esempio, rec_standard/s01/x_test_15.npy
+            file_path = f"{rec_standard_folder}/x_test_{i}.npy"
+            np.save(file_path, reconstructions[i])
+
+        # Save the entire figure of test blink reconstructions (no train!)
+        fig.suptitle(f"{subject} test blinks reconstructed", fontsize=26)
+        file_name = f"test_blinks_reconstructed_{subject}_standard.png"
+        fig.savefig(file_name)
+        to_client.append(file_name)
+
+    if "rec_standard/" not in to_client:
+        to_client.append("rec_standard/")
 
 
 def mask_single_test_sample(latent_component_indices, autoencoder, x_test, subject):
@@ -558,7 +590,7 @@ def mask_set(latent_component_indices, autoencoder, x_test, x_train, subject, is
     ciascuna immagine di test (con blink) mascherata
     """
 
-    # Il mascheramento va fatto considerando la moda delle immagini di train SENZA blink
+    # Il mascheramento va fatto considerando la mediana delle immagini di train SENZA blink
     x_train_no_blinks = get_x_train_no_blinks(x_train, y_train)
     z_train_no_blinks = autoencoder.encoder(x_train_no_blinks, training=False)
 
@@ -613,7 +645,7 @@ def mask_set(latent_component_indices, autoencoder, x_test, x_train, subject, is
             file_name = f"z{'_'.join(map(str, latent_component_indices))}_{strategy.lower()}_{subject}_test_standard.png"
             fig.savefig(file_name)
 
-        # Salvo SENZA mascheramento (solo ricostruzioni)
+        """# Salvo SENZA mascheramento (solo ricostruzioni)
         rec_standard_folder = f"rec_standard/{subject}"
         os.makedirs(rec_standard_folder, exist_ok=True)
         if is_train:
@@ -625,12 +657,10 @@ def mask_set(latent_component_indices, autoencoder, x_test, x_train, subject, is
             # Salvo le ricostruzioni NON mascherate sotto forma di .npy
             # Ad esempio, rec_standard/s01/x_train_15.npy
             file_path = f"{rec_standard_folder}/x_test_{i}.npy"
-            np.save(file_path, reconstructed_no_masked)
+            np.save(file_path, reconstructed_no_masked)"""
 
     if "masked_rec_standard/" not in to_client:
         to_client.append("masked_rec_standard/")
-    if "rec_standard/" not in to_client:
-        to_client.append("rec_standard/")
 
 
 def get_x_train_no_blinks(x_train, y_train):
@@ -641,6 +671,7 @@ def get_x_train_no_blinks(x_train, y_train):
     if not x_train_only_contains_no_blinks:
         raise Exception("Something went wrong while considering only no-blinks train images")
     return x_train
+
 
 def get_x_with_blinks(x, y):
     blink_indices = np.where(y == 1)[0]  # Only samples labelled with BLINK (1)
@@ -740,7 +771,8 @@ if __name__ == '__main__':
     # For each latent component a histogram is created for analyzing the test data distribution
     # The 25th and 75th percentiles are computed for each latent component in order to understand whether
     # Blinks are located outside tha range. For each histogram a confusion matrix is also computed
-    quantile_matrix, z, z_blink, z_no_blink, _ = histogram_25_75(autoencoder, x_train, y_train, latent_dimension, subject)
+    quantile_matrix, z, z_blink, z_no_blink, _ = histogram_25_75(autoencoder, x_train, y_train, latent_dimension,
+                                                                 subject)
 
     # For each latent component the ROC-AUC curve is created for detecting the quartile range which
     # Maximizes the TPR (True Positive Rate)
@@ -757,8 +789,8 @@ if __name__ == '__main__':
     mask_set(top_k_indices, autoencoder, x_test, x_train, subject, is_train=False)  # Genera .npy e .png
     mask_set(top_k_indices, autoencoder, x_test, x_train, subject, is_train=True)  # Genera solo i .npy
 
-    # x_test = get_x_test_blinks(x_test, y_test)
     # save_test_blink_originals(x_test, subject)
-    # save_test_blink_reconstructions(autoencoder, x_test, subject)
+    save_test_blink_reconstructions(autoencoder, x_test, x_train, subject, is_train=False)
+    save_test_blink_reconstructions(autoencoder, x_test, x_train, subject, is_train=True)
 
     print(f"\nFinished. You can transfer to client: {to_client}")
