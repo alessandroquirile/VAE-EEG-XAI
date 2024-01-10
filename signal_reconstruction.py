@@ -96,6 +96,7 @@ def denormalize(x_normalized, x):
 
 def process_topomaps(x_with_blinks, subject, x, topomaps_files, topomaps_folder, my_topomaps_dict, is_train):
     set_type = "train" if is_train else "test"
+    modified_arrays = {}
     # Per ogni topomap in x_test_blinks
     for i in range(x_with_blinks.shape[0]):
         # Mi carico la ricostruzione mascherata della SINGOLA topomap corrente e denormalizzo
@@ -109,24 +110,28 @@ def process_topomaps(x_with_blinks, subject, x, topomaps_files, topomaps_folder,
         for file in topomaps_files:
             # Mi carico l'array associato e ne faccio una copia per sicurezza
             topomaps_array = np.load(f"{topomaps_folder}/{file}")
-            topomaps_array_modified = np.copy(topomaps_array)
 
             # Per ogni topomap del file corrente es s01_trial36.npy (256,...) quindi ciascuno delle 256 immagini
             for j in range(topomaps_array.shape[0]):
                 # Se la topomap corrente corrisponde ad una topomap in topomaps_array
                 if np.all(x_with_blinks[i] == topomaps_array[j]):
+                    # print(f"x_{set_type}_blinks[{i}] == topomaps_array[{j}] e compare nel file {file}")
                     # Modifica specifici elementi nell'array topomaps_array_modified utilizzando
                     # gli indici specificati nel dict
                     for elem in my_topomaps_dict[file][f"topomaps_array_{set_type}"]:
-                        topomaps_array_modified[elem] = masked_rec_denormalized
+                        # print(f"Modifico topomaps_array_modified[{elem}]")
+                        topomaps_array[elem] = masked_rec_denormalized
 
-            # Es. topomaps_reduced_s01_mod (mod nel senso di ricostruzioni mascherate)
-            folder = f"{topomaps_folder}_mod"
-            os.makedirs(folder, exist_ok=True)
-            trial_number = file.split("_")[1].split(".")[0]
-            # Es. s01_trial03_train.npy oppure s01_trial03_test.npy
-            file_name = f"{subject}_{trial_number}.npy"
-            np.save(os.path.join(folder, file_name), topomaps_array_modified)
+                    modified_arrays[file] = topomaps_array
+
+    # Salvataggio dei risultati per ciascun file
+    for file, modified_array in modified_arrays.items():
+        folder = f"{topomaps_folder}_mod"
+        os.makedirs(folder, exist_ok=True)
+        trial_number = file.split("_")[1].split(".")[0]
+        file_name = f"{subject}_{trial_number}.npy"
+        np.save(os.path.join(folder, file_name), modified_array)
+    # print("\n")
 
 def find_matching_indices_in_topomaps(x_blinks, topomaps_files, topomaps_folder, my_topomaps_dict, is_train=True):
     set_type = "train" if is_train else "test"
@@ -151,7 +156,35 @@ def find_matching_indices_in_topomaps(x_blinks, topomaps_files, topomaps_folder,
                     # print(f"x_{set_type}_blinks[{i}] == topomaps_array[{j}] e compare nel file {file}")
         if not found:
             raise Exception(f"x_{set_type}_blinks[{i}] non è stato trovato in alcun file")
-    print("\n")
+    # print("\n")
+
+
+def dbg_files():
+    print("Debug:")
+    folder_mod = 'topomaps_reduced_s01_mod'
+    folder_original = 'topomaps_reduced_s01'
+
+    # Ottenere la lista dei nomi dei file nelle cartelle
+    files_mod = os.listdir(folder_mod)
+    files_original = os.listdir(folder_original)
+
+    all_files_same = True
+
+    for file_name in files_mod:
+        if file_name in files_original:
+            path_mod = os.path.join(folder_mod, file_name)
+            path_original = os.path.join(folder_original, file_name)
+
+            data_mod = np.load(path_mod)
+            data_original = np.load(path_original)
+
+            if not np.array_equal(data_mod, data_original):
+                print(f"Il file {file_name} è stato modificato")
+                all_files_same = False
+
+    if all_files_same:
+        raise Exception("Nessun file è stato modificato")
+
 
 if __name__ == '__main__':
     print("TensorFlow GPU usage:", tf.config.list_physical_devices('GPU'))
@@ -184,3 +217,4 @@ if __name__ == '__main__':
     process_topomaps(x_train_blinks, subject, x_train, topomaps_files, topomaps_folder, my_topomaps_dict, is_train=True)
     process_topomaps(x_test_blinks, subject, x_test, topomaps_files, topomaps_folder, my_topomaps_dict, is_train=False)
 
+    dbg_files()
