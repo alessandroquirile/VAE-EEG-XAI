@@ -192,9 +192,9 @@ if __name__ == '__main__':
                             'P3', 'Pz', 'PO3', 'O1', 'Oz', 'O2', 'PO4', 'P4', 'P8', 'CP6', 'CP2',
                             'C4', 'T8', 'FC6', 'FC2', 'F4', 'F8', 'AF4', 'Fp2', 'Fz', 'Cz']
 
-            # INIZIO INTERPOLATED
-            interpolated_values_list = []  # Serve per costruire interpolated_values in maniera più semplice
-            interpolated_values = None
+            # INIZIO RECONSTRUCTED NO MODEL
+            rec_no_model_list = []  # Serve per costruire interpolated_values in maniera più semplice
+            rec_no_model = None
 
             for i in range(trial_topomaps.shape[0]):  # Ad esempio 0,...,127 se c'è un solo blink
                 trial_topomaps_i = trial_topomaps[i]
@@ -205,15 +205,14 @@ if __name__ == '__main__':
                                                                                         channelNames,
                                                                                         onlyValues=True)
 
-                interpolated_values_list.append(channelInfoFromInterpolatedMap)
+                rec_no_model_list.append(channelInfoFromInterpolatedMap)
 
-            interpolated_values = np.array(interpolated_values_list).transpose()
-            check_same_values(interpolated_values_list, interpolated_values)
+            rec_no_model = np.array(rec_no_model_list).transpose()
+            check_same_values(rec_no_model_list, rec_no_model)
 
-            # FINE INTERPOLATED
+            # FINE RECONSTRUCTED NO MODEL
 
-            # Topomaps modified (masked reconstructed)
-            # INIZIO MASKED RECONSTRUCTED
+            # INIZIO MASKED RECONSTRUCTED (le ricostruzioni mascherate)
             masked_reconstructed_values = None
             trial_with_leading_zero = str(trial).zfill(2)
             folder = f"topomaps_reduced_{subject_without_extension}_mod"
@@ -241,7 +240,7 @@ if __name__ == '__main__':
 
                 # FINE MASKED RECONSTRUCTED
 
-            # INIZIO RECONSTRUCTED (no mask)
+            # INIZIO RECONSTRUCTED (ricostruzioni con modello SENZA maschera)
             reconstructed_values = None
             folder = f"topomaps_reduced_{subject_without_extension}_rec"
             topomaps_files_mod = os.listdir(folder)
@@ -266,7 +265,7 @@ if __name__ == '__main__':
                 reconstructed_values = np.array(reconstructed_values_list).transpose()
                 check_same_values(reconstructed_values_list, reconstructed_values)
 
-                # FINE RECONSTRUCTED (no mask)
+                # FINE RECONSTRUCTED (ricostruzioni con modello SENZA maschera)
 
                 # Selezione del canale (esempio: primo canale, indice 0)
                 indice_canale = 0
@@ -282,20 +281,19 @@ if __name__ == '__main__':
                     asse_x = np.linspace(0, tempo_totale,  sample_rate)
                     if channel_values[indice_canale, i:end_index].shape[0] != sample_rate:
                         continue
-                    plt.plot(asse_x, channel_values[indice_canale, i:end_index], label='Channel')
-                    plt.plot(asse_x, interpolated_values[indice_canale, i:end_index], label='Interpolated')
-                    # plt.plot(asse_x, masked_reconstructed_values[indice_canale], label='Masked reconstructed',
-                    #          linestyle='--')
-                    # Reconstructed sono gli output del modello dandogli in input le topomap in sequenza
-                    # "modificate"
-                    plt.plot(asse_x, reconstructed_values[indice_canale, i:end_index], label='Reconstructed', linestyle='dotted')
+                    plt.plot(asse_x, channel_values[indice_canale, i:end_index], label='Original channel')
+                    plt.plot(asse_x, rec_no_model[indice_canale, i:end_index], label='Reconstructed w/o model')
+                    plt.plot(asse_x, reconstructed_values[indice_canale, i:end_index], label='Reconstructed w/ model',
+                             linestyle='--')
+                    plt.plot(asse_x, masked_reconstructed_values[indice_canale, i:end_index], label='Masked reconstructed w/ model',
+                             linestyle='dotted')
                     plt.xlabel('Time (s)')
                     plt.ylabel('Intensity (V)')
                     plt.title(f'{file}. Channel {canale_selezionato}')
                     plt.legend()
                     plt.grid(True)
                     plt.axvline(x=0.5, color='red', linestyle='--')
-                    plt.show()
+                    # plt.show()
 
                     # Salvo le immagini dei tre segnali
                     images_folder = os.path.join(signal_values_folder, f"signal_images_{subject_without_extension}")
@@ -349,23 +347,17 @@ if __name__ == '__main__':
                 plt.savefig(image_path)
                 plt.close()"""
 
-                # Salvo channel_values
                 file_name = f"{subject_without_extension}_trial{trial_with_leading_zero}.npy"
 
+                # Salvo channel_values
                 channel_values_folder = f"channel_values_{subject_without_extension}"
                 os.makedirs(os.path.join(signal_values_folder, channel_values_folder), exist_ok=True)
                 np.save(os.path.join(signal_values_folder, channel_values_folder, file_name), channel_values)
 
-                # Salvo interpolated_values
-                interpolated_values_folder = f"interpolated_values_{subject_without_extension}"
+                # Salvo rec no model
+                interpolated_values_folder = f"rec_no_model_{subject_without_extension}"
                 os.makedirs(os.path.join(signal_values_folder, interpolated_values_folder), exist_ok=True)
-                np.save(os.path.join(signal_values_folder, interpolated_values_folder, file_name), interpolated_values)
-
-                # Salvo masked_reconstructed_values
-                masked_reconstructed_folder = f"masked_reconstructed_values_{subject_without_extension}"
-                os.makedirs(os.path.join(signal_values_folder, masked_reconstructed_folder), exist_ok=True)
-                np.save(os.path.join(signal_values_folder, masked_reconstructed_folder, file_name),
-                        masked_reconstructed_values)
+                np.save(os.path.join(signal_values_folder, interpolated_values_folder, file_name), rec_no_model)
 
                 # Salvo reconstructed_values (senza mascheramento)
                 reconstructed_folder = f"reconstructed_values_{subject_without_extension}"
@@ -373,4 +365,8 @@ if __name__ == '__main__':
                 np.save(os.path.join(signal_values_folder, reconstructed_folder, file_name),
                         reconstructed_values)
 
-            # exit(0)
+                # Salvo masked_reconstructed_values (con mascheramento)
+                masked_reconstructed_folder = f"masked_reconstructed_values_{subject_without_extension}"
+                os.makedirs(os.path.join(signal_values_folder, masked_reconstructed_folder), exist_ok=True)
+                np.save(os.path.join(signal_values_folder, masked_reconstructed_folder, file_name),
+                        masked_reconstructed_values)
