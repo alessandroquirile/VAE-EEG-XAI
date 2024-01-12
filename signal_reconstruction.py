@@ -94,17 +94,38 @@ def denormalize(x_normalized, x):
     x = (x_normalized * (x_max - x_min)) + x_min
     return x
 
-def process_topomaps(x_with_blinks, subject, x, topomaps_files, topomaps_folder, my_topomaps_dict, is_train):
+def process_topomaps(x_with_blinks, subject, x, topomaps_files, topomaps_folder, my_topomaps_dict, is_train, only_rec):
     set_type = "train" if is_train else "test"
+
+    input_folder = "masked_rec_standard" if not only_rec else "rec_standard"
+    suffix = "mod" if not only_rec else "rec"
+
     modified_arrays = {}
+
+    # In analysis_standard, dentro mask_test:
+    # x_test_blinks.shape[0] # 25
+    # num_cols = len(x_test_blinks) // 2  # 12,5 => 12
+    # fig, axs = plt.subplots(num_rows, num_cols, figsize=(15, 7))
+    # for i, ax in enumerate(axs.ravel()):
+    #    print(i)  # va da 0 a 23 anziché 0 a 24
+    #
+    # i va da 0 a 23 (e non fino a 24) perché num_cols è approssimato per difetto
+    # Quindi posso "omettere" il file che viene anche omesso nel grafico generato da mask_test
+    # Questo giustifica il continue dentro l'except
+
     # Per ogni topomap in x_test_blinks
     for i in range(x_with_blinks.shape[0]):
-        # Mi carico la ricostruzione mascherata della SINGOLA topomap corrente e denormalizzo
+        # Mi carico la ricostruzione mascherata (o ricostruzione e basta) della SINGOLA topomap corrente e denormalizzo
         # ATTENZIONE: AE = _standard; VAE = rimuovere _standard
         # I dati e la cartella sono creati nel file analysis o analysis_standard
-        masked_rec = np.load(f"masked_rec_standard/{subject}/x_{set_type}_{i}.npy")
-        masked_rec_denormalized = denormalize(masked_rec, x)
-        masked_rec_denormalized = masked_rec_denormalized.squeeze()  # (40,40,1) => (40,40)
+        try:
+            model_output = np.load(f"{input_folder}/{subject}/x_{set_type}_{i}.npy")
+        except FileNotFoundError as e:
+            print(f"File not found: {e.filename} (continue)")
+            # Continua con il prossimo file
+            continue
+        model_output_denormalized = denormalize(model_output, x)
+        model_output_denormalized = model_output_denormalized.squeeze()  # (40,40,1) => (40,40)
 
         # Per ogni file in topomaps_file (es. s01_trial36.npy, s01_trial17.npy...)
         for file in topomaps_files:
@@ -120,13 +141,13 @@ def process_topomaps(x_with_blinks, subject, x, topomaps_files, topomaps_folder,
                     # gli indici specificati nel dict
                     for elem in my_topomaps_dict[file][f"topomaps_array_{set_type}"]:
                         # print(f"Modifico topomaps_array_modified[{elem}]")
-                        topomaps_array[elem] = masked_rec_denormalized
+                        topomaps_array[elem] = model_output_denormalized
 
                     modified_arrays[file] = topomaps_array
 
     # Salvataggio dei risultati per ciascun file
     for file, modified_array in modified_arrays.items():
-        folder = f"{topomaps_folder}_mod"
+        folder = f"{topomaps_folder}_{suffix}"
         os.makedirs(folder, exist_ok=True)
         trial_number = file.split("_")[1].split(".")[0]
         file_name = f"{subject}_{trial_number}.npy"
@@ -159,10 +180,16 @@ def find_matching_indices_in_topomaps(x_blinks, topomaps_files, topomaps_folder,
     # print("\n")
 
 
-def dbg_files():
+def dbg_files(only_rec):
     print("Debug:")
-    folder_mod = 'topomaps_reduced_s01_mod'
-    folder_original = 'topomaps_reduced_s01'
+
+    if only_rec:
+        folder_suffix = 'rec'
+    else:
+        folder_suffix = 'mod'
+
+    folder_mod = f'topomaps_reduced_{subject}_{folder_suffix}'
+    folder_original = f'topomaps_reduced_{subject}'
 
     # Ottenere la lista dei nomi dei file nelle cartelle
     files_mod = os.listdir(folder_mod)
@@ -194,8 +221,7 @@ if __name__ == '__main__':
     topomaps_folder = f"topomaps_reduced_{subject}"
     labels_folder = f"labels_reduced_{subject}"
 
-    print("\n>>> QUESTO SCRIPT RICOSTRUISCE IL SEGNALE DALLE TOPOMAPS GENERANDO LA CARTELLA "
-          f"topomaps_reduced_{subject}_mod/ (oppure _rec/) <<<")
+    print(f"\n>>> QUESTO SCRIPT GENERA LE CARTELLE topomaps_reduced_{subject}_mod/ (e _rec/) <<<")
 
     # Load data
     x_train, x_test, y_train, y_test = load_data(topomaps_folder, labels_folder,
@@ -213,8 +239,18 @@ if __name__ == '__main__':
     find_matching_indices_in_topomaps(x_train_blinks, topomaps_files, topomaps_folder, my_topomaps_dict, is_train=True)
     find_matching_indices_in_topomaps(x_test_blinks, topomaps_files, topomaps_folder, my_topomaps_dict, is_train=False)
 
-    # Effettua le sostituzioni per generare topomaps_reduced_s01_mod/ (oppure _rec/)
-    process_topomaps(x_train_blinks, subject, x_train, topomaps_files, topomaps_folder, my_topomaps_dict, is_train=True)
-    process_topomaps(x_test_blinks, subject, x_test, topomaps_files, topomaps_folder, my_topomaps_dict, is_train=False)
+    # Produce topomaps_reduced_s01_mod/ (ricostruzioni mascherate)
+    process_topomaps(x_train_blinks, subject, x_train, topomaps_files, topomaps_folder, my_topomaps_dict, is_train=True,
+                     only_rec=False)
+    process_topomaps(x_test_blinks, subject, x_test, topomaps_files, topomaps_folder, my_topomaps_dict, is_train=False,
+                     only_rec=False)
 
-    dbg_files()
+    dbg_files(only_rec=False)
+
+    # Produce topomaps_reduced_s01_rec/ (solo ricostruzioni)
+    process_topomaps(x_train_blinks, subject, x_train, topomaps_files, topomaps_folder, my_topomaps_dict, is_train=True,
+                     only_rec=True)
+    process_topomaps(x_test_blinks, subject, x_test, topomaps_files, topomaps_folder, my_topomaps_dict, is_train=False,
+                     only_rec=True)
+
+    dbg_files(only_rec=True)

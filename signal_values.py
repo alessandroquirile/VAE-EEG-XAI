@@ -279,7 +279,9 @@ if __name__ == '__main__':
                     plt.figure(figsize=(10, 6))
                     tempo_totale = 1
                     asse_x = np.linspace(0, tempo_totale,  sample_rate)
-                    if channel_values[indice_canale, i:end_index].shape[0] != sample_rate:
+                    # Gestisci casi in cui la divisione del blink non è fattibile
+                    if (channel_values[indice_canale, i:end_index].shape[0] != sample_rate or
+                            masked_reconstructed_values[indice_canale, i:end_index].shape[0] == 0):
                         continue
                     plt.plot(asse_x, channel_values[indice_canale, i:end_index], label='Original channel')
                     plt.plot(asse_x, rec_no_model[indice_canale, i:end_index], label='Reconstructed w/o model')
@@ -293,7 +295,7 @@ if __name__ == '__main__':
                     plt.legend()
                     plt.grid(True)
                     plt.axvline(x=0.5, color='red', linestyle='--')
-                    # plt.show()
+                    plt.show()
 
                     # Salvo le immagini dei tre segnali
                     images_folder = os.path.join(signal_values_folder, f"signal_images_{subject_without_extension}")
