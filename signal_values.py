@@ -57,9 +57,9 @@ if __name__ == '__main__':
     # For participants 3, 5, 11 and 14, one or several of the last trials are missing due to technical issues
     # s01-s22 are the only participants who do have videos
     magic_numbers = {
-        "s01.bdf": 105,
+        # "s01.bdf": 105,
         # "s02.bdf": 160,
-        # "s03.bdf": 100,
+        "s03.bdf": 100,
         # "s04.bdf": 150,
         # "s05.bdf": 150,
         # "s06.bdf": 150,
@@ -281,8 +281,10 @@ if __name__ == '__main__':
                     asse_x = np.linspace(0, tempo_totale,  sample_rate)
                     # Gestisci casi in cui la divisione del blink non è fattibile
                     if (channel_values[indice_canale, i:end_index].shape[0] != sample_rate or
-                            masked_reconstructed_values[indice_canale, i:end_index].shape[0] == 0):
-                        continue
+                            rec_no_model[indice_canale, i:end_index].shape[0] != sample_rate or
+                            reconstructed_values[indice_canale, i:end_index].shape[0] != sample_rate or
+                            masked_reconstructed_values[indice_canale, i:end_index].shape[0] != sample_rate):
+                        break
                     plt.plot(asse_x, channel_values[indice_canale, i:end_index], label='Original channel')
                     plt.plot(asse_x, rec_no_model[indice_canale, i:end_index], label='Reconstructed w/o model')
                     plt.plot(asse_x, reconstructed_values[indice_canale, i:end_index], label='Reconstructed w/ model',
@@ -295,7 +297,7 @@ if __name__ == '__main__':
                     plt.legend()
                     plt.grid(True)
                     plt.axvline(x=0.5, color='red', linestyle='--')
-                    plt.show()
+                    # plt.show()
 
                     # Salvo le immagini dei tre segnali
                     images_folder = os.path.join(signal_values_folder, f"signal_images_{subject_without_extension}")
