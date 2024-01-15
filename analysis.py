@@ -427,26 +427,57 @@ def save_test_blink_originals(x_test, subject):
     to_client.append(file_name)
 
 
-def save_test_blink_reconstructions(vae, x_test, subject):
+def save_test_blink_reconstructions(vae, x_test, x_train, subject, is_train):
     # Usa questa funzione per salvare in un unico png tutte le ricostruzioni di
     # immagini di test con blink per un certo soggetto
     reconstructions = []
-    for i in range(len(x_test)):
-        original = x_test[i]
-        reconstructed = vae.predict(np.expand_dims(original, axis=0), verbose=0)  # (1, 40, 40, 1)
-        reconstructions.append(reconstructed[0])
-    num_rows = 2
-    num_cols = len(x_test) // num_rows
-    fig, axs = plt.subplots(num_rows, num_cols, figsize=(15, 7))
-    for i, ax in enumerate(axs.ravel()):
-        ax.imshow(reconstructions[i], cmap="gray")
-        ax.set_title(f"x_test[{i}]")
-        ax.axis('off')
-    # Save the entire figure
-    fig.suptitle(f"{subject} test blinks reconstructed", fontsize=26)
-    file_name = f"test_blinks_reconstructed_{subject}.png"
-    fig.savefig(file_name)
-    to_client.append(file_name)
+    rec_vae_folder = f"rec_vae/{subject}"
+
+    if is_train:
+        x_train = get_x_with_blinks(x_train, y_train)
+        for i in range(len(x_train)):
+            original = x_train[i]
+            reconstructed = vae.predict(np.expand_dims(original, axis=0), verbose=0)  # (1, 40, 40, 1)
+            reconstructions.append(reconstructed[0])
+        num_rows = 2
+        num_cols = len(x_train) // num_rows
+        fig, axs = plt.subplots(num_rows, num_cols, figsize=(15, 7))
+        for i, ax in enumerate(axs.ravel()):
+            ax.imshow(reconstructions[i], cmap="gray")
+            ax.set_title(f"x_train[{i}]")
+            ax.axis('off')
+
+            os.makedirs(rec_vae_folder, exist_ok=True)
+            # Ad esempio, rec_standard/s01/x_train_15.npy
+            file_path = f"{rec_vae_folder}/x_train_{i}.npy"
+            np.save(file_path, reconstructions[i])
+    else:
+        x_test = get_x_with_blinks(x_test, y_test)
+        for i in range(len(x_test)):
+            original = x_test[i]
+            reconstructed = vae.predict(np.expand_dims(original, axis=0), verbose=0)  # (1, 40, 40, 1)
+            reconstructions.append(reconstructed[0])
+        num_rows = 2
+        num_cols = len(x_test) // num_rows
+        fig, axs = plt.subplots(num_rows, num_cols, figsize=(15, 7))
+        for i, ax in enumerate(axs.ravel()):
+            ax.imshow(reconstructions[i], cmap="gray")
+            ax.set_title(f"x_test[{i}]")
+            ax.axis('off')
+
+            os.makedirs(rec_vae_folder, exist_ok=True)
+            # Ad esempio, rec_vae/s01/x_test_15.npy
+            file_path = f"{rec_vae_folder}/x_test_{i}.npy"
+            np.save(file_path, reconstructions[i])
+
+        # Save the entire figure of test blink reconstructions (no train!)
+        fig.suptitle(f"{subject} test blinks reconstructed", fontsize=26)
+        file_name = f"test_blinks_reconstructed_{subject}.png"
+        fig.savefig(file_name)
+        to_client.append(file_name)
+
+    if "rec_vae/" not in to_client:
+        to_client.append("rec_vae/")
 
 
 def mask_single_test_sample(latent_component_indices, vae, x_test, subject):
@@ -545,35 +576,35 @@ def mask_set(latent_component_indices, vae, x_test, x_train, subject, is_train=F
             median = np.median(z_train_no_blinks[:, latent_component_idx])
             z_masked[:, latent_component_idx] = median
 
-        decoder_output_masked = vae.decoder(z_masked, training=False)
-        reconstructed_masked = decoder_output_masked[i]
+            # Con mascheramento
+            decoder_output_masked = vae.decoder(z_masked, training=False)
+            reconstructed_masked = decoder_output_masked[i]
 
-        reconstructions_folder = f"masked_rec/{subject}"
-        os.makedirs(reconstructions_folder, exist_ok=True)
-        if is_train:
-            # Salvo le ricostruzioni mascherate sotto forma di .npy, non mi interessa anche il png
-            # Ad esempio, masked_rec/s01/x_train_15.npy
-            file_path = f"{reconstructions_folder}/x_train_{i}.npy"
-            np.save(file_path, reconstructed_masked)
-        else:
-            # Salvo le ricostruzioni mascherate sotto forma di .npy
-            # Ad esempio, masked_rec/s01/x_train_15.npy
-            file_path = f"{reconstructions_folder}/x_test_{i}.npy"
-            np.save(file_path, reconstructed_masked)
+            # Salvo con mascheramento (masked reconstruction)
+            masked_rec_vae_folder = f"masked_rec_vae/{subject}"
+            os.makedirs(masked_rec_vae_folder, exist_ok=True)
+            if is_train:
+                # Salvo le ricostruzioni mascherate sotto forma di .npy, non mi interessa il png
+                # Ad esempio, masked_red_standard_vae/s01/x_train_15.npy
+                file_path = f"{masked_rec_vae_folder}/x_train_{i}.npy"
+                np.save(file_path, reconstructed_masked)
+            else:
+                # Salvo le ricostruzioni mascherate sotto forma di .npy
+                # Ad esempio, masked_rec_standard_vae/s01/x_train_15.npy
+                file_path = f"{masked_rec_vae_folder}/x_test_{i}.npy"
+                np.save(file_path, reconstructed_masked)
 
-            # Salvo il png con tutte le ricostruzioni mascherate, nel caso di test set
-            ax.imshow(reconstructed_masked, cmap="gray")
-            ax.set_title(f"x_test[{i}]")
-            ax.axis('off')
-            # Save the entire figure
-            fig.suptitle(f"{subject} test blinks. Mask strategy is: {strategy}", fontsize=26)
-            # Ad esempio, z8_median_s01.png
-            file_name = f"z{'_'.join(map(str, latent_component_indices))}_{strategy.lower()}_{subject}_test.png"
-            fig.savefig(file_name)
-            to_client.append(file_name)
+                # Salvo il png con tutte le ricostruzioni mascherate, nel caso di test set
+                ax.imshow(reconstructed_masked, cmap="gray")
+                ax.set_title(f"x_test[{i}]")
+                ax.axis('off')
+                fig.suptitle(f"{subject} test blinks. Mask strategy is: {strategy}", fontsize=26)
+                # Ad esempio, z8_median_s01_standard.png
+                file_name = f"z{'_'.join(map(str, latent_component_indices))}_{strategy.lower()}_{subject}_test_standard.png"
+                fig.savefig(file_name)
 
-    if "masked_rec/" not in to_client:
-        to_client.append("masked_rec/")
+        if "masked_rec_vae/" not in to_client:
+            to_client.append("masked_rec_vae/")
 
 
 def get_x_train_no_blinks(x_train, y_train):
@@ -604,12 +635,12 @@ if __name__ == '__main__':
         "s02": 1e-05,
         "s03": 1e-06,
         "s04": 1e-05,
-        # "s05": 1e-05, # Istogramma non significativo
+        "s05": 1e-05, # Istogramma non significativo
         "s06": 1e-05,
         "s07": 1e-05,
-        # "s08": 1e-07, # Istogramma non significativo
+        "s08": 1e-07, # Istogramma non significativo
         "s09": 1e-06,
-        # "s10": 1e-05  # Istogramma non significativo
+        "s10": 1e-05  # Istogramma non significativo
     }
 
     # Dati ridotti al solo intorno del blink
@@ -690,20 +721,20 @@ if __name__ == '__main__':
     # For each latent component the ROC-AUC curve is created for detecting the quartile range which
     # Maximizes the TPR (True Positive Rate)
     auc_list = auc_roc(quantile_matrix, z_mean_blink, z_mean_no_blink, subject)
-    print(auc_list)
+    # print(auc_list)
     k = 1
     top_k_indices = [pair[0] for pair in auc_list[:k]]
-    print("top_k_indices:", top_k_indices)
+    # print("top_k_indices:", top_k_indices)
 
     # Mask relevant latent components
-    # "Relevant" means large IQR (implies more variance of data) and many TP blinks (outside the IQR)
-    # Se is_train=False, salva "{reconstructions_folder}/x_test_{i}.npy" e il file .png delle ricostruzioni mascherate
-    # Altrimenti, salva soltanto i file .npy
+    # Produce masked_rec_vae/
     mask_set(top_k_indices, vae, x_test, x_train, subject, is_train=False)  # Genera .npy e .png
     mask_set(top_k_indices, vae, x_test, x_train, subject, is_train=True)  # Genera solo i .npy
 
-    # x_test = get_x_test_blinks(x_test, y_test)
     # save_test_blink_originals(x_test, subject)
-    # save_test_blink_reconstructions(vae, x_test, subject)
+
+    # Produce rec_vae/
+    save_test_blink_reconstructions(vae, x_test, x_train, subject, is_train=False)
+    save_test_blink_reconstructions(vae, x_test, x_train, subject, is_train=True)
 
     print(f"\nFinished. You can transfer to client: {to_client}")

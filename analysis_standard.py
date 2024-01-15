@@ -608,11 +608,9 @@ def mask_set(latent_component_indices, autoencoder, x_test, x_train, subject, is
     strategy = "Median"
     for i, ax in enumerate(axs.ravel()):
         z_masked = np.copy(z_train_no_blinks)
-        z_no_masked = np.copy(z_train_no_blinks)
         for latent_component_idx in latent_component_indices:
             median = np.median(z_train_no_blinks[:, latent_component_idx])
             z_masked[:, latent_component_idx] = median
-            z_no_masked[:, latent_component_idx] = z_train_no_blinks[:, latent_component_idx]
 
         # Con mascheramento
         decoder_output_masked = autoencoder.decoder(z_masked, training=False)
@@ -674,16 +672,16 @@ if __name__ == '__main__':
         "s02": 1e-05,
         "s03": 1e-05,
         "s04": 1e-05,
-        # "s05": 1e-05, # Istogramma non significativo
+        "s05": 1e-05,
         "s06": 1e-05,
         "s07": 1e-05,
-        # "s08": 1e-07, # Istogramma non significativo
+        "s08": 1e-07,
         "s09": 1e-05,
-        # "s10": 1e-05  # Istogramma non significativo
+        "s10": 1e-05
     }
 
     # Dati ridotti al solo intorno del blink
-    subject = "s01"
+    subject = "s05"
     topomaps_folder = f"topomaps_reduced_{subject}"
     labels_folder = f"labels_reduced_{subject}"
 
